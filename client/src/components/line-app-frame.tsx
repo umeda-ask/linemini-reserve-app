@@ -1,7 +1,8 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useLocation } from "wouter";
-import { X, Home, ChevronLeft } from "lucide-react";
+import { X, Home, ChevronLeft, Ticket, CalendarX2, Star, Store } from "lucide-react";
 import { SiLine } from "react-icons/si";
+import { useCoupons, type AcquiredCoupon } from "@/hooks/use-coupons";
 
 function LineStatusBar() {
   const now = new Date();
@@ -27,56 +28,193 @@ function LineStatusBar() {
   );
 }
 
-function LineHeader() {
-  const [location, navigate] = useLocation();
-  const isHome = location === "/app";
-  const getTitle = () => {
-    if (isHome) return "かながわ西部おでかけナビ";
-    if (location.startsWith("/app/list")) return "お店一覧";
-    if (location.startsWith("/app/shop/")) return "お店詳細";
-    if (location.startsWith("/app/reservation/")) return "予約";
-    return "かながわ西部おでかけナビ";
-  };
+function isExpired(expiryDate?: string | null): boolean {
+  if (!expiryDate) return false;
+  return new Date(expiryDate) < new Date();
+}
+
+function CouponWalletModal({ onClose }: { onClose: () => void }) {
+  const { acquired, clearAll } = useCoupons();
+  const valid = acquired.filter((c) => !isExpired(c.expiryDate));
+  const expired = acquired.filter((c) => isExpired(c.expiryDate));
 
   return (
-    <div className="flex items-center justify-between px-2 py-1.5 bg-white border-b border-gray-200 sticky top-0 z-50" data-testid="line-header">
-      <div className="flex items-center gap-1 min-w-[50px]">
-        {!isHome ? (
+    <div
+      className="absolute inset-0 bg-black/50 z-[200] flex flex-col"
+      onClick={onClose}
+      data-testid="modal-coupon-wallet"
+    >
+      <div
+        className="bg-background mt-auto rounded-t-2xl max-h-[75%] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="flex items-center gap-2">
+            <Ticket className="w-4 h-4 text-primary" />
+            <h2 className="font-bold text-sm">取得済みクーポン</h2>
+            {valid.length > 0 && (
+              <span className="bg-primary text-primary-foreground text-xs font-bold rounded-full px-1.5 py-0.5">
+                {valid.length}
+              </span>
+            )}
+          </div>
           <button
-            onClick={() => window.history.back()}
-            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-            data-testid="button-line-back"
+            onClick={onClose}
+            className="p-1 rounded-full hover:bg-muted"
+            data-testid="button-close-coupon-wallet"
           >
-            <ChevronLeft className="w-5 h-5 text-gray-700" />
+            <X className="w-4 h-4" />
           </button>
-        ) : (
-          <div className="p-1">
-            <SiLine className="w-4 h-4 text-[#06C755]" />
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {acquired.length === 0 ? (
+            <div className="text-center py-10">
+              <Ticket className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">まだクーポンを取得していません</p>
+              <p className="text-xs text-muted-foreground mt-1">店舗ページでクーポンを取得してください</p>
+            </div>
+          ) : (
+            <>
+              {valid.map((c) => (
+                <CouponWalletCard key={c.id} coupon={c} />
+              ))}
+              {expired.length > 0 && (
+                <>
+                  <p className="text-xs text-muted-foreground font-semibold pt-2">期限切れ</p>
+                  {expired.map((c) => (
+                    <CouponWalletCard key={c.id} coupon={c} faded />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {acquired.length > 0 && (
+          <div className="px-4 pb-4 border-t pt-3">
+            <button
+              onClick={() => { clearAll(); }}
+              className="text-xs text-muted-foreground underline"
+              data-testid="button-clear-coupons"
+            >
+              すべてクリア
+            </button>
           </div>
         )}
       </div>
-      <h1 className="text-xs font-semibold text-gray-900 truncate" data-testid="text-line-header-title">
-        {getTitle()}
-      </h1>
-      <div className="flex items-center gap-0.5 min-w-[50px] justify-end">
-        {!isHome && (
-          <button
-            onClick={() => navigate("/app")}
-            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-            data-testid="button-line-home"
-          >
-            <Home className="w-3.5 h-3.5 text-gray-500" />
-          </button>
+    </div>
+  );
+}
+
+function CouponWalletCard({ coupon, faded }: { coupon: AcquiredCoupon; faded?: boolean }) {
+  return (
+    <div className={`rounded-lg border overflow-hidden ${faded ? "opacity-50 border-border" : "border-primary/30"}`} data-testid={`wallet-coupon-${coupon.id}`}>
+      {/* 店名ヘッダー */}
+      <div className={`flex items-center gap-1.5 px-3 py-1.5 ${faded ? "bg-muted" : "bg-primary"}`}>
+        <Store className="w-3.5 h-3.5 text-white flex-shrink-0" />
+        <p className="text-sm font-bold text-white truncate">{coupon.shopName}</p>
+      </div>
+      {/* クーポン内容 */}
+      <div className={`p-3 ${faded ? "" : "bg-primary/5"}`}>
+        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+          {coupon.isFirstTimeOnly && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+              <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+              初回限定
+            </span>
+          )}
+          {coupon.isLineAccountCoupon && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-[#06C755]/10 text-[#06C755] px-1.5 py-0.5 rounded">
+              <SiLine className="w-2.5 h-2.5" />
+              LINE限定
+            </span>
+          )}
+        </div>
+        <p className="font-bold text-sm">{coupon.title}</p>
+        {coupon.discount && <p className="text-primary font-bold text-base mt-0.5">{coupon.discount}</p>}
+        {coupon.description && <p className="text-xs text-muted-foreground mt-0.5">{coupon.description}</p>}
+        {coupon.expiryDate && (
+          <div className={`flex items-center gap-1 mt-2 text-[10px] ${faded ? "text-red-500" : "text-muted-foreground"}`}>
+            <CalendarX2 className="w-3 h-3" />
+            {faded ? "期限切れ: " : "有効期限: "}
+            {new Date(coupon.expiryDate).toLocaleDateString("ja-JP")}
+          </div>
         )}
-        <button
-          onClick={() => navigate("/line")}
-          className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-          data-testid="button-line-close"
-        >
-          <X className="w-3.5 h-3.5 text-gray-500" />
-        </button>
       </div>
     </div>
+  );
+}
+
+function LineHeader() {
+  const [location, navigate] = useLocation();
+  const [walletOpen, setWalletOpen] = useState(false);
+  const { acquired } = useCoupons();
+  const validCount = acquired.filter((c) => !isExpired(c.expiryDate)).length;
+
+  const isHome = location === "/app";
+  const getTitle = () => {
+    if (isHome) return "神奈川おでかけナビ";
+    if (location.startsWith("/app/list")) return "お店一覧";
+    if (location.startsWith("/app/shop/")) return "お店詳細";
+    if (location.startsWith("/app/reservation/")) return "予約";
+    return "神奈川おでかけナビ";
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-2 py-1.5 bg-white border-b border-gray-200 sticky top-0 z-50" data-testid="line-header">
+        <div className="flex items-center gap-1 min-w-[50px]">
+          {!isHome ? (
+            <button
+              onClick={() => window.history.back()}
+              className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+              data-testid="button-line-back"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-700" />
+            </button>
+          ) : (
+            <div className="p-1">
+              <SiLine className="w-4 h-4 text-[#06C755]" />
+            </div>
+          )}
+        </div>
+        <h1 className="text-xs font-semibold text-gray-900 truncate" data-testid="text-line-header-title">
+          {getTitle()}
+        </h1>
+        <div className="flex items-center gap-0.5 min-w-[50px] justify-end">
+          <button
+            onClick={() => setWalletOpen(true)}
+            className="p-1 rounded-full hover:bg-gray-100 transition-colors relative"
+            data-testid="button-coupon-wallet"
+          >
+            <Ticket className="w-3.5 h-3.5 text-gray-500" />
+            {validCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary rounded-full text-[8px] font-bold text-primary-foreground flex items-center justify-center">
+                {validCount > 9 ? "9+" : validCount}
+              </span>
+            )}
+          </button>
+          {!isHome && (
+            <button
+              onClick={() => navigate("/app")}
+              className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+              data-testid="button-line-home"
+            >
+              <Home className="w-3.5 h-3.5 text-gray-500" />
+            </button>
+          )}
+          <button
+            onClick={() => navigate("/line")}
+            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+            data-testid="button-line-close"
+          >
+            <X className="w-3.5 h-3.5 text-gray-500" />
+          </button>
+        </div>
+      </div>
+      {walletOpen && <CouponWalletModal onClose={() => setWalletOpen(false)} />}
+    </>
   );
 }
 

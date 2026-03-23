@@ -148,6 +148,138 @@ const SHOP_BOOKING_DATA: Record<number, ShopBookingData> = {
       staff_selection_enabled: "true",
     },
   },
+  17: {
+    staff: [
+      { id: "s17-1", name: "山田 彩華", role: "トップスタイリスト", avatar: "山彩", courseIds: ["c17-1", "c17-2", "c17-3", "c17-4"] },
+      { id: "s17-2", name: "中村 恵理", role: "シニアスタイリスト", avatar: "中恵", courseIds: ["c17-1", "c17-2", "c17-3"] },
+      { id: "s17-3", name: "田中 悠希", role: "スタイリスト", avatar: "田悠", courseIds: ["c17-1", "c17-2"] },
+    ],
+    courses: [
+      { id: "c17-1", name: "カット", category: "ヘア", duration: 60, price: 5500, description: "カウンセリング・シャンプー・カット・ブロー込み。横浜で人気の技術派サロン。", prepaymentOnly: false, imageUrl: null, staffIds: ["s17-1", "s17-2", "s17-3"] },
+      { id: "c17-2", name: "カット＋カラー", category: "ヘア", duration: 120, price: 12000, description: "カットとカラーのフルコース。イルミナカラー・アディクシーカラー対応。", prepaymentOnly: false, imageUrl: null, staffIds: ["s17-1", "s17-2", "s17-3"] },
+      { id: "c17-3", name: "トリートメント単品", category: "ヘアケア", duration: 45, price: 4400, description: "傷んだ髪を徹底補修。TOKIO・ケラスターゼなど高品質トリートメント。", prepaymentOnly: false, imageUrl: null, staffIds: ["s17-1", "s17-2"] },
+      { id: "c17-4", name: "パーミング（パーマ）", category: "ヘア", duration: 150, price: 15000, description: "デジタルパーマ・コールドパーマ各種対応。カット込みプライス。", prepaymentOnly: true, imageUrl: null, staffIds: ["s17-1"] },
+    ],
+    reservations: [
+      { id: "r17-1", customerName: "鈴木 美里", date: "2026-03-20", time: "10:00", staffId: "s17-1", courseId: "c17-2", status: "confirmed", paid: true },
+      { id: "r17-2", customerName: "小林 奈緒", date: "2026-03-20", time: "13:00", staffId: "s17-2", courseId: "c17-1", status: "confirmed", paid: false },
+    ],
+    settings: {
+      store_name: "Beauty Lounge 横浜",
+      store_description: "横浜関内のトータルビューティーサロン",
+      store_address: "神奈川県横浜市中区本町3-24",
+      store_phone: "045-222-1234",
+      store_email: "info@beauty-yokohama.jp",
+      store_hours: "10:00〜20:00（最終受付19:00）",
+      store_closed_days: "毎週水曜日",
+      banner_url: "",
+      staff_selection_enabled: "false",
+    },
+  },
+  20: {
+    staff: [
+      { id: "s20-1", name: "橋本 涼子", role: "アロマセラピスト", avatar: "橋涼", courseIds: ["c20-1", "c20-2", "c20-3"] },
+      { id: "s20-2", name: "伊藤 美月", role: "スパセラピスト", avatar: "伊美", courseIds: ["c20-1", "c20-2"] },
+    ],
+    courses: [
+      { id: "c20-1", name: "全身アロマトリートメント", category: "リラクゼーション", duration: 90, price: 9800, description: "天然アロマオイルを使った全身の深部ケア。日常の疲れをリセット。", prepaymentOnly: false, imageUrl: null, staffIds: ["s20-1", "s20-2"] },
+      { id: "c20-2", name: "岩盤浴＋マッサージセット", category: "温浴", duration: 120, price: 7800, description: "60分岩盤浴と60分ボディマッサージのお得なセットプラン。", prepaymentOnly: false, imageUrl: null, staffIds: ["s20-1", "s20-2"] },
+      { id: "c20-3", name: "贅沢プレミアムコース", category: "リラクゼーション", duration: 150, price: 18000, description: "フェイシャル・ボディ・ヘッドスパのフルパッケージ。最高の癒しを体験。", prepaymentOnly: true, imageUrl: null, staffIds: ["s20-1"] },
+    ],
+    reservations: [
+      { id: "r20-1", customerName: "加藤 早苗", date: "2026-03-21", time: "11:00", staffId: "s20-1", courseId: "c20-1", status: "confirmed", paid: true },
+    ],
+    settings: {
+      store_name: "温浴スパ 厚木の湯",
+      store_description: "丹沢の天然水を使用した癒しの温泉スパ",
+      store_address: "神奈川県厚木市中町2-8-1",
+      store_phone: "046-222-1234",
+      store_email: "info@atsugi-spa.jp",
+      store_hours: "10:00〜22:00（最終受付20:30）",
+      store_closed_days: "年中無休",
+      banner_url: "",
+      staff_selection_enabled: "false",
+    },
+  },
+  24: {
+    staff: [
+      { id: "s24-1", name: "石田 康平", role: "オーナーシェフ", avatar: "石康", courseIds: ["c24-1", "c24-2", "c24-3"] },
+      { id: "s24-2", name: "佐々木 和香", role: "パティシエ", avatar: "佐和", courseIds: ["c24-2", "c24-3"] },
+    ],
+    courses: [
+      { id: "c24-1", name: "絶景テラスランチ", category: "食事", duration: 90, price: 3800, description: "富士山を望むテラス席での特別ランチ。季節野菜のプレートと特製スープ付き。", prepaymentOnly: false, imageUrl: null, staffIds: ["s24-1", "s24-2"] },
+      { id: "c24-2", name: "アフタヌーンティーセット", category: "カフェ", duration: 60, price: 2400, description: "箱根の素材を使ったスイーツ3種＋選べるドリンク。", prepaymentOnly: false, imageUrl: null, staffIds: ["s24-1", "s24-2"] },
+      { id: "c24-3", name: "サンセットディナーコース", category: "食事", duration: 120, price: 8800, description: "夕暮れの富士山を眺めながらの特別ディナー。全5品。完全予約制。", prepaymentOnly: true, imageUrl: null, staffIds: ["s24-1"] },
+    ],
+    reservations: [
+      { id: "r24-1", customerName: "山田 健三", date: "2026-03-22", time: "12:00", staffId: "s24-1", courseId: "c24-1", status: "confirmed", paid: false },
+      { id: "r24-2", customerName: "西村 明子", date: "2026-03-22", time: "15:00", staffId: "s24-2", courseId: "c24-2", status: "confirmed", paid: true },
+    ],
+    settings: {
+      store_name: "箱根山荘カフェ",
+      store_description: "大涌谷近くの絶景カフェ・レストラン",
+      store_address: "神奈川県足柄下郡箱根町仙石原82-1",
+      store_phone: "0460-84-1234",
+      store_email: "info@hakone-cafe.jp",
+      store_hours: "10:00〜17:00（ディナーは予約のみ）",
+      store_closed_days: "毎週火曜日",
+      banner_url: "",
+      staff_selection_enabled: "false",
+    },
+  },
+  26: {
+    staff: [
+      { id: "s26-1", name: "鈴木 大輔", role: "店主", avatar: "鈴大", courseIds: ["c26-1", "c26-2", "c26-3"] },
+      { id: "s26-2", name: "渡辺 健", role: "副店主", avatar: "渡健", courseIds: ["c26-1", "c26-2"] },
+    ],
+    courses: [
+      { id: "c26-1", name: "御殿場高原ラーメンセット", category: "食事", duration: 45, price: 1500, description: "看板の鶏白湯ラーメン＋餃子3個＋ライスのお得セット。", prepaymentOnly: false, imageUrl: null, staffIds: ["s26-1", "s26-2"] },
+      { id: "c26-2", name: "宴会コース（2時間）", category: "宴会", duration: 120, price: 3800, description: "飲み放題付き全8品。ラーメン・餃子・唐揚げなど御殿場名物料理を堪能。", prepaymentOnly: true, imageUrl: null, staffIds: ["s26-1"] },
+      { id: "c26-3", name: "ランチ限定特盛セット", category: "食事", duration: 30, price: 1200, description: "平日11:00〜14:00限定。特盛ラーメン＋ドリンク付き。", prepaymentOnly: false, imageUrl: null, staffIds: ["s26-1", "s26-2"] },
+    ],
+    reservations: [
+      { id: "r26-1", customerName: "田中 孝一", date: "2026-03-23", time: "18:00", staffId: "s26-1", courseId: "c26-2", status: "confirmed", paid: true },
+    ],
+    settings: {
+      store_name: "御殿場高原ラーメン",
+      store_description: "富士山の湧き水で炊く鶏白湯スープが自慢",
+      store_address: "静岡県御殿場市新橋910-3",
+      store_phone: "0550-82-1234",
+      store_email: "info@gotemba-ramen.jp",
+      store_hours: "11:00〜21:00（L.O. 20:30）",
+      store_closed_days: "毎週木曜日",
+      banner_url: "",
+      staff_selection_enabled: "false",
+    },
+  },
+  28: {
+    staff: [
+      { id: "s28-1", name: "木村 奈々", role: "オーナースタイリスト", avatar: "木奈", courseIds: ["c28-1", "c28-2", "c28-3", "c28-4"] },
+      { id: "s28-2", name: "松田 由香", role: "シニアスタイリスト", avatar: "松由", courseIds: ["c28-1", "c28-2", "c28-3"] },
+      { id: "s28-3", name: "吉田 莉子", role: "スタイリスト", avatar: "吉莉", courseIds: ["c28-1", "c28-2"] },
+    ],
+    courses: [
+      { id: "c28-1", name: "カット", category: "ヘア", duration: 60, price: 4000, description: "カウンセリング・シャンプー・カット・ブロー込み。20年以上の実績ある技術。", prepaymentOnly: false, imageUrl: null, staffIds: ["s28-1", "s28-2", "s28-3"] },
+      { id: "c28-2", name: "カット＋カラー", category: "ヘア", duration: 120, price: 9500, description: "カットとカラーのセットメニュー。ダメージレスカラー対応。", prepaymentOnly: false, imageUrl: null, staffIds: ["s28-1", "s28-2", "s28-3"] },
+      { id: "c28-3", name: "着付けサービス", category: "着付け", duration: 60, price: 8000, description: "振袖・訪問着・留袖など各種着付け対応。ヘアセット込みプランあり。", prepaymentOnly: true, imageUrl: null, staffIds: ["s28-1", "s28-2"] },
+      { id: "c28-4", name: "ヘアセット＋着付けセット", category: "着付け", duration: 90, price: 12000, description: "ヘアセットと着付けのフルコース。成人式・七五三・結婚式に。", prepaymentOnly: true, imageUrl: null, staffIds: ["s28-1"] },
+    ],
+    reservations: [
+      { id: "r28-1", customerName: "森田 千夏", date: "2026-03-24", time: "09:00", staffId: "s28-1", courseId: "c28-3", status: "confirmed", paid: true },
+      { id: "r28-2", customerName: "上田 里奈", date: "2026-03-24", time: "11:00", staffId: "s28-2", courseId: "c28-1", status: "confirmed", paid: false },
+    ],
+    settings: {
+      store_name: "ヘアーズ 座間",
+      store_description: "地域密着20年以上の信頼と実績ある美容室",
+      store_address: "神奈川県座間市相模が丘1-45-3",
+      store_phone: "046-255-1234",
+      store_email: "info@hairs-zama.jp",
+      store_hours: "9:30〜19:30（最終受付18:30）",
+      store_closed_days: "毎週月曜日",
+      banner_url: "",
+      staff_selection_enabled: "false",
+    },
+  },
 };
 
 class BookingStore {
