@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { areas, categories, shops, coupons, shopCategories } from "@shared/schema";
+import { areas, categories, subCategories, shops, coupons, shopCategories } from "@shared/schema";
 import { nanoid } from "nanoid";
 
 // ─────────────────────────────
@@ -34,6 +34,56 @@ const seedCategories = [
   { slug: "medical",  name: "医療・福祉",     icon: "heart-pulse" },
 ];
 
+
+// ─────────────────────────────
+// サブカテゴリマスタ
+// ─────────────────────────────
+const seedSubCategories = [
+  // グルメ
+  { categorySlug: "gourmet", slug: "washoku",   name: "和食",       icon: "utensils" },
+  { categorySlug: "gourmet", slug: "yoshoku",   name: "洋食",       icon: "utensils" },
+  { categorySlug: "gourmet", slug: "chuka",     name: "中華",       icon: "utensils" },
+  { categorySlug: "gourmet", slug: "italian",   name: "イタリアン", icon: "utensils" },
+  { categorySlug: "gourmet", slug: "izakaya",   name: "居酒屋",     icon: "utensils" },
+  { categorySlug: "gourmet", slug: "cafe",      name: "カフェ",     icon: "coffee" },
+  { categorySlug: "gourmet", slug: "ramen",     name: "ラーメン",   icon: "utensils" },
+  { categorySlug: "gourmet", slug: "sushi",     name: "寿司・海鮮", icon: "utensils" },
+  { categorySlug: "gourmet", slug: "sweets",    name: "スイーツ",   icon: "cake" },
+  { categorySlug: "gourmet", slug: "other",     name: "その他",     icon: "more-horizontal" },
+  // 美容・健康
+  { categorySlug: "beauty", slug: "hair",      name: "ヘアサロン",       icon: "scissors" },
+  { categorySlug: "beauty", slug: "esthe",     name: "エステ",           icon: "sparkles" },
+  { categorySlug: "beauty", slug: "nail",      name: "ネイル",           icon: "sparkles" },
+  { categorySlug: "beauty", slug: "massage",   name: "マッサージ・整体", icon: "heart-pulse" },
+  { categorySlug: "beauty", slug: "fitness",   name: "フィットネス",     icon: "dumbbell" },
+  { categorySlug: "beauty", slug: "other",     name: "その他",           icon: "more-horizontal" },
+  // ショッピング
+  { categorySlug: "shopping", slug: "fashion",     name: "ファッション",   icon: "shopping-bag" },
+  { categorySlug: "shopping", slug: "goods",       name: "雑貨",           icon: "shopping-bag" },
+  { categorySlug: "shopping", slug: "food",        name: "食料品・惣菜",   icon: "shopping-cart" },
+  { categorySlug: "shopping", slug: "electronics", name: "家電・デジタル", icon: "monitor" },
+  { categorySlug: "shopping", slug: "books",       name: "書籍・文具",     icon: "book" },
+  { categorySlug: "shopping", slug: "other",       name: "その他",         icon: "more-horizontal" },
+  // レジャー・体験
+  { categorySlug: "leisure", slug: "sightseeing",   name: "観光スポット",   icon: "map-pin" },
+  { categorySlug: "leisure", slug: "onsen",         name: "温泉・スパ",     icon: "droplets" },
+  { categorySlug: "leisure", slug: "outdoor",       name: "アウトドア",     icon: "tree-pine" },
+  { categorySlug: "leisure", slug: "experience",    name: "体験・教室",     icon: "graduation-cap" },
+  { categorySlug: "leisure", slug: "entertainment", name: "エンタメ",       icon: "music" },
+  { categorySlug: "leisure", slug: "other",         name: "その他",         icon: "more-horizontal" },
+  // サービス
+  { categorySlug: "service", slug: "cleaning",   name: "クリーニング",       icon: "washing-machine" },
+  { categorySlug: "service", slug: "repair",     name: "修理・メンテナンス", icon: "wrench" },
+  { categorySlug: "service", slug: "school",     name: "教室・スクール",     icon: "graduation-cap" },
+  { categorySlug: "service", slug: "realestate", name: "不動産",             icon: "home" },
+  { categorySlug: "service", slug: "other",      name: "その他",             icon: "more-horizontal" },
+  // 医療・福祉
+  { categorySlug: "medical", slug: "clinic",   name: "病院・クリニック", icon: "stethoscope" },
+  { categorySlug: "medical", slug: "dental",   name: "歯科",             icon: "smile" },
+  { categorySlug: "medical", slug: "pharmacy", name: "調剤薬局",         icon: "pill" },
+  { categorySlug: "medical", slug: "care",     name: "介護・福祉",       icon: "heart-handshake" },
+  { categorySlug: "medical", slug: "other",    name: "その他",           icon: "more-horizontal" },
+];
 // ─────────────────────────────
 // 店舗データ（areaSlug・categorySlugで参照）
 // ─────────────────────────────
@@ -353,7 +403,28 @@ export async function seedDatabase() {
   } else {
     console.log(`Categories already exist (${existingCategories.length}), skipping...`);
   }
-
+  // 2.5. サブカテゴリ投入
+  const existingSubCategories = await db.select().from(subCategories);
+  if (existingSubCategories.length === 0) {
+    console.log("Seeding subCategories...");
+    const allCategories = await db.select().from(categories);
+    for (const sub of seedSubCategories) {
+      const category = allCategories.find(c => c.slug === sub.categorySlug);
+      if (!category) {
+        console.warn(`Category not found: ${sub.categorySlug}`);
+        continue;
+      }
+      await db.insert(subCategories).values({
+        category_id: category.id,
+        slug:        sub.slug,
+        name:        sub.name,
+        icon:        sub.icon,
+      });
+    }
+    console.log(`Seeded ${seedSubCategories.length} subCategories`);
+  } else {
+    console.log(`SubCategories already exist (${existingSubCategories.length}), skipping...`);
+  }
   // 3. 店舗投入
   const existingShops = await db.select().from(shops);
   if (existingShops.length === 0) {

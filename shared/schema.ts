@@ -43,6 +43,19 @@ export const categories = pgTable("categories", {
 });
 
 // ─────────────────────────────
+// サブカテゴリーマスタ
+// ─────────────────────────────
+export const subCategories = pgTable("sub_categories", {
+  id:          integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  category_id: integer("category_id").notNull(),
+  slug:        text("slug").notNull().unique(),
+  name:        text("name").notNull(),
+  icon:        text("icon").notNull(),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+});
+
+
+// ─────────────────────────────
 // 店舗
 // ─────────────────────────────
 export const shops = pgTable("shops", {
@@ -51,8 +64,6 @@ export const shops = pgTable("shops", {
   name:                  text("name").notNull(),
   description:           text("description").notNull(),
   areaId:                integer("area_id").notNull(),
-  categoryId:            integer("category_id").notNull(),
-  subCategoryId:         integer("sub_category_id"),
   address:               text("address").notNull(),
   phone:                 text("phone"),
   hours:                 text("hours"),
@@ -257,7 +268,58 @@ export const CATEGORIES = [
   { slug: "service",  name: "サービス",       icon: "wrench" },
   { slug: "medical",  name: "医療・福祉",     icon: "heart-pulse" },
 ] as const;
-
+export const SUBCATEGORIES: Record<string, { id: string; name: string }[]> = {
+  gourmet: [
+    { id: "washoku",   name: "和食" },
+    { id: "yoshoku",   name: "洋食" },
+    { id: "chuka",     name: "中華" },
+    { id: "italian",   name: "イタリアン" },
+    { id: "izakaya",   name: "居酒屋" },
+    { id: "cafe",      name: "カフェ" },
+    { id: "ramen",     name: "ラーメン" },
+    { id: "sushi",     name: "寿司・海鮮" },
+    { id: "sweets",    name: "スイーツ" },
+    { id: "other",     name: "その他" },
+  ],
+  beauty: [
+    { id: "hair",      name: "ヘアサロン" },
+    { id: "esthe",     name: "エステ" },
+    { id: "nail",      name: "ネイル" },
+    { id: "massage",   name: "マッサージ・整体" },
+    { id: "fitness",   name: "フィットネス" },
+    { id: "other",     name: "その他" },
+  ],
+  shopping: [
+    { id: "fashion",     name: "ファッション" },
+    { id: "goods",       name: "雑貨" },
+    { id: "food",        name: "食料品・惣菜" },
+    { id: "electronics", name: "家電・デジタル" },
+    { id: "books",       name: "書籍・文具" },
+    { id: "other",       name: "その他" },
+  ],
+  leisure: [
+    { id: "sightseeing",   name: "観光スポット" },
+    { id: "onsen",         name: "温泉・スパ" },
+    { id: "outdoor",       name: "アウトドア" },
+    { id: "experience",    name: "体験・教室" },
+    { id: "entertainment", name: "エンタメ" },
+    { id: "other",         name: "その他" },
+  ],
+  service: [
+    { id: "cleaning",   name: "クリーニング" },
+    { id: "repair",     name: "修理・メンテナンス" },
+    { id: "school",     name: "教室・スクール" },
+    { id: "realestate", name: "不動産" },
+    { id: "other",      name: "その他" },
+  ],
+  medical: [
+    { id: "clinic",    name: "病院・クリニック" },
+    { id: "dental",    name: "歯科" },
+    { id: "pharmacy",  name: "調剤薬局" },
+    { id: "care",      name: "介護・福祉" },
+    { id: "other",     name: "その他" },
+  ],
+};
 export const AREAS = [
   { slug: "odawara",        name: "小田原", label: "小田原エリア" },
   { slug: "yamato",         name: "大和",   label: "大和エリア" },
