@@ -51,6 +51,7 @@ function HeroSection() {
         src="/images/hero-kanagawa.png"
         alt="Kanagawa"
         className="absolute inset-0 w-full h-full object-cover"
+        style={{ transform: "scaleX(-1)" }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/60" />
       <div className="relative z-10 flex flex-col items-center justify-center h-full px-3 text-center">
@@ -60,13 +61,13 @@ function HeroSection() {
           data-testid="badge-portal-label"
         >
           <MapPin className="w-2.5 h-2.5 mr-0.5" />
-          神奈川県西部エリア
+          神奈川県全域・静岡県東部
         </Badge>
         <h1
           className="text-lg font-bold text-white mb-1 tracking-tight"
           data-testid="text-hero-title"
         >
-          かながわ西部おでかけナビ
+          神奈川おでかけナビ
         </h1>
         <p
           className="text-white/80 text-[10px] leading-relaxed"
@@ -597,10 +598,10 @@ export default function HomePage() {
       <footer className="bg-card border-t py-4 px-3">
         <div className="text-center">
           <p className="font-bold text-primary text-xs mb-1" data-testid="text-footer-title">
-            かながわ西部おでかけナビ
+            神奈川おでかけナビ
           </p>
           <p className="text-[10px] text-muted-foreground mb-2">
-            神奈川県西部エリアの商店街・組合加盟店のポータルサイト
+            神奈川県全域・静岡県東部エリアの商店街・組合加盟店のポータルサイト
           </p>
           <div className="flex items-center justify-center gap-2 flex-wrap">
             {AREAS.map((a) => (
@@ -612,7 +613,7 @@ export default function HomePage() {
             ))}
           </div>
           <p className="text-[10px] text-muted-foreground mt-3">
-            &copy; 2026 かながわ西部おでかけナビ
+            &copy; 2026 神奈川おでかけナビ
           </p>
         </div>
       </footer>

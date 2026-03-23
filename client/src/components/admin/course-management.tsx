@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, CreditCard, Loader2, Image as ImageIcon } from "lucide-react";
 import { fetchStaff, fetchCourses, createCourse, updateCourse, deleteCourse, formatPrice, formatDuration, type Course, type Staff } from "@/lib/booking-api";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,10 @@ export function CourseManagement({ shopId }: { shopId: number }) {
   const [formDescription, setFormDescription] = useState("");
   const [formPrepayment, setFormPrepayment] = useState(false);
   const [formStaffIds, setFormStaffIds] = useState<string[]>([]);
+  const [formImageUrl, setFormImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   const reload = async () => {
     const [c, s] = await Promise.all([fetchCourses(shopId), fetchStaff(shopId)]);
@@ -49,6 +52,7 @@ export function CourseManagement({ shopId }: { shopId: number }) {
     setFormDescription("");
     setFormPrepayment(false);
     setFormStaffIds([]);
+    setFormImageUrl(null);
     setDialogOpen(true);
   };
 
@@ -61,7 +65,25 @@ export function CourseManagement({ shopId }: { shopId: number }) {
     setFormDescription(course.description);
     setFormPrepayment(course.prepaymentOnly);
     setFormStaffIds(course.staffIds);
+    setFormImageUrl(course.imageUrl);
     setDialogOpen(true);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setFormImageUrl(data.url);
+    } finally {
+      setUploading(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
   };
 
   const handleSave = async () => {
@@ -75,6 +97,7 @@ export function CourseManagement({ shopId }: { shopId: number }) {
       description: formDescription,
       prepaymentOnly: formPrepayment,
       staffIds: formStaffIds,
+      imageUrl: formImageUrl,
     };
     if (editingCourse) {
       await updateCourse(shopId, { id: editingCourse.id, ...data });
@@ -227,6 +250,22 @@ export function CourseManagement({ shopId }: { shopId: number }) {
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground">説明</label>
               <Textarea value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="コースの説明..." rows={3} data-testid="input-course-description" />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">コース画像</label>
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleImageUpload} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button variant="outline" onClick={() => imageInputRef.current?.click()} disabled={uploading} size="sm" className="gap-1.5">
+                  <ImageIcon className="h-4 w-4" />
+                  {uploading ? "アップロード中..." : "画像を選択"}
+                </Button>
+                {formImageUrl && (
+                  <div className="relative">
+                    <img src={formImageUrl} alt="preview" className="h-24 w-24 rounded-lg object-cover border border-border" />
+                    <button onClick={() => setFormImageUrl(null)} className="absolute -top-2 -right-2 bg-destructive text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">✕</button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-border p-3">
               <div>

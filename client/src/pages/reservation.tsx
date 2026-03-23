@@ -192,6 +192,7 @@ export default function ReservationPage() {
         )}
         {step === "confirm" && selectedCourse && (
           <PaymentConfirm
+            shopId={shopId}
             course={selectedCourse}
             staff={selectedStaff}
             date={selectedDate}
@@ -234,11 +235,11 @@ export default function ReservationPage() {
         <div className="max-w-lg mx-auto text-center">
           <Link href="/app">
             <span className="text-sm font-bold text-primary cursor-pointer" data-testid="link-footer-reservation-home">
-              かながわ西部おでかけナビ
+              神奈川おでかけナビ
             </span>
           </Link>
           <p className="text-xs text-muted-foreground mt-2">
-            &copy; 2026 かながわ西部おでかけナビ All Rights Reserved.
+            &copy; 2026 神奈川おでかけナビ All Rights Reserved.
           </p>
         </div>
       </footer>

@@ -22,7 +22,7 @@ import {
   X,
   Heart,
 } from "lucide-react";
-import { AREAS, CATEGORIES } from "@shared/schema";
+import { AREAS, CATEGORIES, SUBCATEGORIES } from "@shared/schema";
 import type { Shop } from "@shared/schema";
 import { getAreaName, getCategoryName, isRecentlyUpdated, sortByDisplayOrderAndDate } from "@/lib/data";
 import { useState, useMemo } from "react";
@@ -37,10 +37,13 @@ export default function ListPage() {
 
   const [area, setArea] = useState(initialArea);
   const [category, setCategory] = useState(initialCategory);
+  const [subcategory, setSubcategory] = useState(params.get("subcategory") || "all");
   const [keyword, setKeyword] = useState(initialQ);
   const [favOnly, setFavOnly] = useState(params.get("fav") === "1");
   const [, navigate] = useLocation();
   const { favorites, isFavorite, toggleFavorite } = useFavorites();
+
+  const subcategoryOptions = category !== "all" ? (SUBCATEGORIES[category] ?? []) : [];
 
   const { data: shops = [], isLoading } = useQuery<Shop[]>({
     queryKey: ["/api/shops"],
@@ -51,6 +54,7 @@ export default function ListPage() {
       if (favOnly && !favorites.includes(shop.id)) return false;
       if (area !== "all" && shop.area !== area) return false;
       if (category !== "all" && shop.category !== category) return false;
+      if (subcategory !== "all" && shop.subcategory !== subcategory) return false;
       if (keyword) {
         const q = keyword.toLowerCase();
         return (
@@ -62,7 +66,7 @@ export default function ListPage() {
       return true;
     });
     return sortByDisplayOrderAndDate(filtered);
-  }, [shops, area, category, keyword, favOnly, favorites]);
+  }, [shops, area, category, subcategory, keyword, favOnly, favorites]);
 
   const pageTitle = useMemo(() => {
     if (favOnly && area === "all" && category === "all" && !keyword) return "お気に入りのお店";
@@ -70,11 +74,15 @@ export default function ListPage() {
     if (favOnly) parts.push("お気に入り");
     if (area !== "all") parts.push(getAreaName(area));
     if (category !== "all") parts.push(getCategoryName(category));
+    if (subcategory !== "all") {
+      const sub = subcategoryOptions.find((s) => s.id === subcategory);
+      if (sub) parts.push(sub.name);
+    }
     if (keyword) parts.push(`「${keyword}」`);
     return parts.length > 0 ? parts.join(" / ") + " の検索結果" : "すべてのお店";
-  }, [area, category, keyword, favOnly]);
+  }, [area, category, subcategory, subcategoryOptions, keyword, favOnly]);
 
-  const hasFilters = area !== "all" || category !== "all" || keyword !== "" || favOnly;
+  const hasFilters = area !== "all" || category !== "all" || subcategory !== "all" || keyword !== "" || favOnly;
 
   return (
     <div className="bg-background px-3 py-3">
@@ -95,7 +103,7 @@ export default function ListPage() {
             </SelectContent>
           </Select>
 
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={(v) => { setCategory(v); setSubcategory("all"); }}>
             <SelectTrigger className="flex-1 h-8 text-xs" data-testid="select-list-category">
               <SelectValue placeholder="業種" />
             </SelectTrigger>
@@ -136,7 +144,7 @@ export default function ListPage() {
               size="sm"
               variant="ghost"
               className="h-8 px-2 text-xs text-muted-foreground"
-              onClick={() => { setArea("all"); setCategory("all"); setKeyword(""); setFavOnly(false); }}
+              onClick={() => { setArea("all"); setCategory("all"); setSubcategory("all"); setKeyword(""); setFavOnly(false); }}
               data-testid="button-clear-filters"
             >
               <X className="w-3 h-3 mr-0.5" />
@@ -145,6 +153,28 @@ export default function ListPage() {
           )}
         </div>
       </div>
+
+      {subcategoryOptions.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 mb-2" style={{ scrollbarWidth: "none" }}>
+          <button
+            className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-bold border transition-all ${subcategory === "all" ? "bg-orange-500 text-white border-orange-500" : "bg-white text-amber-900 border-gray-200 hover:border-orange-300"}`}
+            onClick={() => setSubcategory("all")}
+            data-testid="button-subcategory-all"
+          >
+            すべて
+          </button>
+          {subcategoryOptions.map((sub) => (
+            <button
+              key={sub.id}
+              className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-bold border transition-all ${subcategory === sub.id ? "bg-orange-500 text-white border-orange-500" : "bg-white text-amber-900 border-gray-200 hover:border-orange-300"}`}
+              onClick={() => setSubcategory(sub.id)}
+              data-testid={`button-subcategory-${sub.id}`}
+            >
+              {sub.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-2.5">
         <h1 className="text-sm font-bold truncate mr-2" data-testid="text-list-title">{pageTitle}</h1>
@@ -188,11 +218,11 @@ export default function ListPage() {
       <footer className="text-center py-4 mt-4">
         <Link href="/app">
           <span className="text-xs font-bold text-primary cursor-pointer" data-testid="link-footer-home">
-            かながわ西部おでかけナビ
+            神奈川おでかけナビ
           </span>
         </Link>
         <p className="text-[10px] text-muted-foreground mt-1">
-          &copy; 2026 かながわ西部おでかけナビ
+          &copy; 2026 神奈川おでかけナビ
         </p>
       </footer>
     </div>

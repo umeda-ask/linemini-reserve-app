@@ -35,9 +35,14 @@ import {
   Store,
   Copy,
   Check,
+  Search,
+  CreditCard,
+  CircleCheck,
+  CircleDashed,
+  CircleAlert,
 } from "lucide-react";
-import { SiLine } from "react-icons/si";
-import { AREAS, CATEGORIES } from "@shared/schema";
+import { SiLine, SiStripe } from "react-icons/si";
+import { AREAS, CATEGORIES, SUBCATEGORIES } from "@shared/schema";
 import type { Shop, Coupon } from "@shared/schema";
 import { getAreaName, getCategoryName } from "@/lib/data";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -72,6 +77,8 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
   const [displayOrder, setDisplayOrder] = useState(shop.displayOrder.toString());
   const [lineAccountUrl, setLineAccountUrl] = useState(shop.lineAccountUrl || "");
   const [reservationEnabled, setReservationEnabled] = useState(!!shop.reservationUrl);
+  const [subcategory, setSubcategory] = useState(shop.subcategory || "");
+  const subcategoryOptions = SUBCATEGORIES[shop.category] ?? [];
 
   const { data: shopCoupons = [], isLoading: couponsLoading } = useQuery<Coupon[]>({
     queryKey: ["/api/shops", shop.id.toString(), "coupons"],
@@ -87,6 +94,7 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
         displayOrder: parseInt(displayOrder) || 0,
         lineAccountUrl: lineAccountUrl || null,
         reservationUrl: reservationEnabled ? `/app/reservation/${shop.id}` : null,
+        subcategory: subcategory || null,
       });
     },
     onSuccess: () => {
@@ -102,6 +110,8 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
   const [newCouponDescription, setNewCouponDescription] = useState("");
   const [newCouponDiscount, setNewCouponDiscount] = useState("");
   const [newCouponIsLine, setNewCouponIsLine] = useState(false);
+  const [newCouponIsFirstTimeOnly, setNewCouponIsFirstTimeOnly] = useState(false);
+  const [newCouponExpiry, setNewCouponExpiry] = useState("");
 
   const createCouponMutation = useMutation({
     mutationFn: async () => {
@@ -110,6 +120,8 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
         description: newCouponDescription || null,
         discount: newCouponDiscount || null,
         isLineAccountCoupon: newCouponIsLine,
+        isFirstTimeOnly: newCouponIsFirstTimeOnly,
+        expiryDate: newCouponExpiry || null,
       });
     },
     onSuccess: () => {
@@ -119,6 +131,8 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
       setNewCouponDescription("");
       setNewCouponDiscount("");
       setNewCouponIsLine(false);
+      setNewCouponIsFirstTimeOnly(false);
+      setNewCouponExpiry("");
       toast({ title: "クーポンを追加しました" });
     },
     onError: () => {
@@ -137,6 +151,46 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
     },
     onError: () => {
       toast({ title: "クーポンの削除に失敗しました", variant: "destructive" });
+    },
+  });
+
+  const { data: stripeStatus, refetch: refetchStripeStatus } = useQuery({
+    queryKey: ["/api/stripe/connect/status", shop.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/stripe/connect/status/${shop.id}`);
+      return res.json();
+    },
+    staleTime: 30000,
+  });
+
+  const onboardMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/stripe/connect/onboard/${shop.id}`, {});
+      const data = await res.json();
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.url) {
+        window.open(data.url, "_blank");
+        setTimeout(() => refetchStripeStatus(), 3000);
+      }
+    },
+    onError: () => {
+      toast({ title: "Stripe接続の開始に失敗しました", variant: "destructive" });
+    },
+  });
+
+  const dashboardMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/stripe/connect/dashboard/${shop.id}`, {});
+      const data = await res.json();
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.url) window.open(data.url, "_blank");
+    },
+    onError: () => {
+      toast({ title: "ダッシュボードのリンク取得に失敗しました", variant: "destructive" });
     },
   });
 
@@ -181,6 +235,22 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
             data-testid={`input-line-url-${shop.id}`}
           />
         </div>
+        {subcategoryOptions.length > 0 && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">サブカテゴリ</label>
+            <Select value={subcategory || "none"} onValueChange={(v) => setSubcategory(v === "none" ? "" : v)}>
+              <SelectTrigger data-testid={`select-subcategory-${shop.id}`}>
+                <SelectValue placeholder="未選択" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">未選択</SelectItem>
+                {subcategoryOptions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {reservationEnabled && (
@@ -209,6 +279,73 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
             </Button>
           </Link>
         )}
+      </div>
+
+      <div className="border-t pt-4">
+        <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+          <SiStripe className="w-4 h-4 text-[#635BFF]" />
+          Stripe Connect 決済連携
+        </h4>
+        <div className="rounded-md border p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            {stripeStatus?.connected ? (
+              <CircleCheck className="w-4 h-4 text-green-600" />
+            ) : stripeStatus?.status === "pending" ? (
+              <CircleAlert className="w-4 h-4 text-amber-500" />
+            ) : (
+              <CircleDashed className="w-4 h-4 text-muted-foreground" />
+            )}
+            <span className="text-sm font-medium">
+              {stripeStatus?.connected
+                ? "接続済み（決済受取可能）"
+                : stripeStatus?.status === "pending"
+                ? "設定中（オンボーディング未完了）"
+                : "未接続"}
+            </span>
+            {stripeStatus?.accountId && (
+              <span className="text-xs text-muted-foreground ml-auto">{stripeStatus.accountId}</span>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            {!stripeStatus?.connected && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-[#635BFF] text-[#635BFF] hover:bg-[#635BFF]/5"
+                onClick={() => onboardMutation.mutate()}
+                disabled={onboardMutation.isPending}
+                data-testid={`button-stripe-onboard-${shop.id}`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                {onboardMutation.isPending ? "処理中..." :
+                  stripeStatus?.status === "pending" ? "設定を再開" : "Stripe連携を開始"}
+              </Button>
+            )}
+            {stripeStatus?.connected && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => dashboardMutation.mutate()}
+                disabled={dashboardMutation.isPending}
+                data-testid={`button-stripe-dashboard-${shop.id}`}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                {dashboardMutation.isPending ? "取得中..." : "Stripeダッシュボードを開く"}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs text-muted-foreground"
+              onClick={() => refetchStripeStatus()}
+              data-testid={`button-stripe-refresh-${shop.id}`}
+            >
+              状態を更新
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="border-t pt-4">
@@ -282,16 +419,41 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
               onChange={(e) => setNewCouponDescription(e.target.value)}
               data-testid={`input-new-coupon-description-${shop.id}`}
             />
-            <div className="flex items-center gap-3">
-              <Select value={newCouponIsLine ? "line" : "regular"} onValueChange={(v) => setNewCouponIsLine(v === "line")}>
-                <SelectTrigger className="w-[200px]" data-testid={`select-new-coupon-type-${shop.id}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="regular">通常クーポン</SelectItem>
-                  <SelectItem value="line">LINE公式アカウント限定</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-muted-foreground mb-0.5 block">有効期限（空白=期限なし）</label>
+                <Input
+                  type="date"
+                  value={newCouponExpiry}
+                  onChange={(e) => setNewCouponExpiry(e.target.value)}
+                  className="text-xs"
+                  data-testid={`input-new-coupon-expiry-${shop.id}`}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground mb-0.5 block">種別</label>
+                <Select value={newCouponIsLine ? "line" : "regular"} onValueChange={(v) => setNewCouponIsLine(v === "line")}>
+                  <SelectTrigger className="text-xs" data-testid={`select-new-coupon-type-${shop.id}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="regular">通常クーポン</SelectItem>
+                    <SelectItem value="line">LINE公式アカウント限定</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={newCouponIsFirstTimeOnly}
+                  onChange={(e) => setNewCouponIsFirstTimeOnly(e.target.checked)}
+                  className="rounded"
+                  data-testid={`checkbox-first-time-only-${shop.id}`}
+                />
+                ⭐ 初回限定クーポン
+              </label>
               <Button
                 size="sm"
                 onClick={() => createCouponMutation.mutate()}
@@ -315,8 +477,10 @@ function AddShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const [description, setDescription] = useState("");
   const [area, setArea] = useState("");
   const [category, setCategory] = useState("");
+  const [subcategory, setSubcategory] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
+  const subcategoryOptions = category ? (SUBCATEGORIES[category] ?? []) : [];
 
   const createShopMutation = useMutation({
     mutationFn: async () => {
@@ -325,6 +489,7 @@ function AddShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
         description,
         area,
         category,
+        subcategory: subcategory || null,
         address,
         phone: phone || null,
         imageUrl: "/images/shop-default.png",
@@ -334,7 +499,7 @@ function AddShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/shops"] });
       toast({ title: "店舗を追加しました" });
-      setName(""); setDescription(""); setArea(""); setCategory("");
+      setName(""); setDescription(""); setArea(""); setCategory(""); setSubcategory("");
       setAddress(""); setPhone("");
       onClose();
     },
@@ -379,7 +544,7 @@ function AddShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">業種 *</label>
-              <Select value={category} onValueChange={setCategory}>
+              <Select value={category} onValueChange={(v) => { setCategory(v); setSubcategory(""); }}>
                 <SelectTrigger data-testid="select-new-shop-category">
                   <SelectValue placeholder="選択" />
                 </SelectTrigger>
@@ -391,6 +556,22 @@ function AddShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
               </Select>
             </div>
           </div>
+          {subcategoryOptions.length > 0 && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">サブカテゴリ</label>
+              <Select value={subcategory || "none"} onValueChange={(v) => setSubcategory(v === "none" ? "" : v)}>
+                <SelectTrigger data-testid="select-new-shop-subcategory">
+                  <SelectValue placeholder="選択（任意）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">未選択</SelectItem>
+                  {subcategoryOptions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">住所 *</label>
             <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="例: 神奈川県大和市中央1-2-3" data-testid="input-new-shop-address" />
@@ -420,6 +601,7 @@ function ShopManagementTab() {
   const [expandedShopId, setExpandedShopId] = useState<number | null>(null);
   const [filterArea, setFilterArea] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [searchKeyword, setSearchKeyword] = useState("");
   const [showAddShop, setShowAddShop] = useState(false);
 
   const { data: shops = [], isLoading } = useQuery<Shop[]>({
@@ -429,50 +611,63 @@ function ShopManagementTab() {
   const filteredShops = shops.filter((shop) => {
     if (filterArea !== "all" && shop.area !== filterArea) return false;
     if (filterCategory !== "all" && shop.category !== filterCategory) return false;
+    if (searchKeyword.trim() && !shop.name.includes(searchKeyword.trim())) return false;
     return true;
   });
 
   return (
     <>
       <Card className="p-4 mb-6 overflow-visible">
-        <div className="flex flex-col md:flex-row gap-3">
-          <Select value={filterArea} onValueChange={setFilterArea}>
-            <SelectTrigger className="md:w-[160px]" data-testid="select-admin-area">
-              <MapPin className="w-4 h-4 mr-2 text-muted-foreground" />
-              <SelectValue placeholder="エリア" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべてのエリア</SelectItem>
-              {AREAS.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {a.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="店舗名で検索..."
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              className="pl-10"
+              data-testid="input-admin-search"
+            />
+          </div>
+          <div className="flex flex-col md:flex-row gap-3">
+            <Select value={filterArea} onValueChange={setFilterArea}>
+              <SelectTrigger className="md:w-[160px]" data-testid="select-admin-area">
+                <MapPin className="w-4 h-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="エリア" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべてのエリア</SelectItem>
+                {AREAS.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger className="md:w-[160px]" data-testid="select-admin-category">
-              <SelectValue placeholder="業種" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべての業種</SelectItem>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="md:w-[160px]" data-testid="select-admin-category">
+                <SelectValue placeholder="業種" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべての業種</SelectItem>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Badge variant="secondary" className="self-center">
-            {filteredShops.length}件
-          </Badge>
-          <div className="md:ml-auto">
-            <Button onClick={() => setShowAddShop(true)} data-testid="button-add-shop">
-              <Plus className="w-4 h-4 mr-1" />
-              店舗を追加
-            </Button>
+            <Badge variant="secondary" className="self-center">
+              {filteredShops.length}件
+            </Badge>
+            <div className="md:ml-auto">
+              <Button onClick={() => setShowAddShop(true)} data-testid="button-add-shop">
+                <Plus className="w-4 h-4 mr-1" />
+                店舗を追加
+              </Button>
+            </div>
           </div>
         </div>
       </Card>
@@ -492,40 +687,40 @@ function ShopManagementTab() {
             ) : (
               <Card
                 key={shop.id}
-                className="overflow-visible p-4 cursor-pointer hover-elevate active-elevate-2"
+                className="overflow-visible p-5 cursor-pointer hover-elevate active-elevate-2"
                 onClick={() => setExpandedShopId(shop.id)}
                 data-testid={`card-admin-shop-${shop.id}`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 flex-1">
                     <img
                       src={shop.imageUrl}
                       alt={shop.name}
-                      className="w-12 h-12 rounded-md object-cover"
+                      className="w-16 h-16 rounded-md object-cover flex-shrink-0"
                     />
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="font-semibold text-sm">{shop.name}</span>
-                        <Badge variant="outline" className="text-xs px-1.5 py-0">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="font-bold text-base">{shop.name}</span>
+                        <Badge variant="outline" className="text-xs px-2 py-0.5">
                           {getCategoryName(shop.category)}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">{getAreaName(shop.area)}</span>
+                        <span className="text-sm text-muted-foreground">{getAreaName(shop.area)}</span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                         <span>表示順: {shop.displayOrder}</span>
                         {shop.lineAccountUrl && (
-                          <Badge className="bg-[#06C755] border-[#06C755] text-white text-xs px-1.5 py-0">
-                            <SiLine className="w-3 h-3 mr-0.5" />
+                          <Badge className="bg-[#06C755] border-[#06C755] text-white text-xs px-2 py-0.5">
+                            <SiLine className="w-3 h-3 mr-1" />
                             LINE連携
                           </Badge>
                         )}
                         {shop.reservationUrl && (
-                          <Badge variant="secondary" className="text-xs px-1.5 py-0">予約あり</Badge>
+                          <Badge variant="secondary" className="text-xs px-2 py-0.5">予約あり</Badge>
                         )}
                       </div>
                     </div>
                   </div>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  <ChevronDown className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                 </div>
               </Card>
             )

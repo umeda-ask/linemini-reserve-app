@@ -20,11 +20,17 @@ import {
   CalendarCheck,
   Bell,
   Heart,
+  Star,
+  CalendarX2,
+  CheckCircle,
+  ThumbsUp,
 } from "lucide-react";
 import { SiLine } from "react-icons/si";
 import type { Shop, Coupon } from "@shared/schema";
 import { getAreaName, getCategoryName, isRecentlyUpdated } from "@/lib/data";
 import { useFavorites } from "@/hooks/use-favorites";
+import { useCoupons } from "@/hooks/use-coupons";
+import { useLikes } from "@/hooks/use-likes";
 
 function ImageSlider({
   images,
@@ -190,6 +196,8 @@ export default function DetailPage() {
   });
 
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { acquireCoupon, isAcquired } = useCoupons();
+  const { liked, count, like } = useLikes(shop?.id || 0);
 
   if (isLoading) {
     return (
@@ -217,8 +225,10 @@ export default function DetailPage() {
     );
   }
 
-  const regularCoupons = shopCoupons.filter((c) => !c.isLineAccountCoupon);
-  const lineCoupons = shopCoupons.filter((c) => c.isLineAccountCoupon);
+  const isExpiredCoupon = (c: { expiryDate?: string | null }) =>
+    !!c.expiryDate && new Date(c.expiryDate) < new Date();
+  const regularCoupons = shopCoupons.filter((c) => !c.isLineAccountCoupon && !isExpiredCoupon(c));
+  const lineCoupons = shopCoupons.filter((c) => c.isLineAccountCoupon && !isExpiredCoupon(c));
   const recentlyUpdated = isRecentlyUpdated(shop.updatedAt);
   const mapQuery = encodeURIComponent(shop.address);
   const favorited = isFavorite(shop.id);
@@ -240,6 +250,26 @@ export default function DetailPage() {
           recentlyUpdated={recentlyUpdated}
         />
 
+        {/* いいねバー */}
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-bold text-foreground">{count}</span> 人がいいねしています
+          </p>
+          <button
+            onClick={like}
+            disabled={liked}
+            data-testid={`button-like-${shop.id}`}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${
+              liked
+                ? "bg-blue-50 border-blue-300 text-blue-500 cursor-default"
+                : "bg-white border-border text-foreground hover:bg-blue-50 hover:border-blue-300 hover:text-blue-500 active:scale-95"
+            }`}
+          >
+            <ThumbsUp className={`w-4 h-4 ${liked ? "fill-blue-500 text-blue-500" : ""}`} />
+            {liked ? "いいね済み" : "Good!"}
+          </button>
+        </div>
+
         <div className="px-4 md:px-6 py-6 space-y-6">
           {regularCoupons.length > 0 && (
             <Card className="overflow-visible border-2 border-[#06C755]/30 bg-gradient-to-br from-[#06C755]/5 to-card">
@@ -258,25 +288,23 @@ export default function DetailPage() {
 
                 <div className="space-y-3">
                   {regularCoupons.map((coupon) => (
-                    <div key={coupon.id} className="bg-card rounded-md p-4 border border-card-border" data-testid={`card-coupon-${coupon.id}`}>
-                      <h4 className="font-bold text-sm mb-1">{coupon.title}</h4>
-                      {coupon.discount && (
-                        <p className="text-lg font-bold text-[#06C755] mb-1">{coupon.discount}</p>
-                      )}
-                      {coupon.description && (
-                        <p className="text-xs text-muted-foreground">{coupon.description}</p>
-                      )}
-                    </div>
+                    <CouponCard
+                      key={coupon.id}
+                      coupon={coupon}
+                      shopName={shop.name}
+                      acquired={isAcquired(coupon.id)}
+                      onAcquire={() => acquireCoupon(coupon, shop.name)}
+                    />
                   ))}
                 </div>
               </div>
             </Card>
           )}
 
-          {lineCoupons.length > 0 && shop.lineAccountUrl && (
+          {lineCoupons.length > 0 && (
             <Card className="overflow-visible border-2 border-[#06C755]/50 bg-gradient-to-br from-[#06C755]/10 to-card">
               <div className="p-5">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-2">
                   <div className="w-10 h-10 rounded-full bg-[#06C755] flex items-center justify-center">
                     <SiLine className="w-5 h-5 text-white" />
                   </div>
@@ -288,35 +316,41 @@ export default function DetailPage() {
                   </div>
                 </div>
 
+                <div className="rounded-md bg-[#06C755]/10 border border-[#06C755]/20 px-3 py-2 mb-4 text-xs text-[#065f36] flex items-start gap-1.5">
+                  <SiLine className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span>このクーポンはLINE公式アカウントを友だち追加した方のみご利用いただけます</span>
+                </div>
+
                 <div className="space-y-3 mb-4">
                   {lineCoupons.map((coupon) => (
-                    <div key={coupon.id} className="bg-card rounded-md p-4 border border-[#06C755]/20" data-testid={`card-line-coupon-${coupon.id}`}>
-                      <h4 className="font-bold text-sm mb-1">{coupon.title}</h4>
-                      {coupon.discount && (
-                        <p className="text-lg font-bold text-[#06C755] mb-1">{coupon.discount}</p>
-                      )}
-                      {coupon.description && (
-                        <p className="text-xs text-muted-foreground">{coupon.description}</p>
-                      )}
-                    </div>
+                    <CouponCard
+                      key={coupon.id}
+                      coupon={coupon}
+                      shopName={shop.name}
+                      acquired={isAcquired(coupon.id)}
+                      onAcquire={() => acquireCoupon(coupon, shop.name)}
+                      isLine
+                    />
                   ))}
                 </div>
 
-                <Button
-                  className="w-full bg-[#06C755] border-[#06C755] text-white font-bold text-xs"
-                  asChild
-                >
-                  <a
-                    href={shop.lineAccountUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-testid="link-shop-line-account"
-                    className="flex items-center justify-center gap-1.5 whitespace-nowrap overflow-hidden"
+                {shop.lineAccountUrl && (
+                  <Button
+                    className="w-full bg-[#06C755] border-[#06C755] text-white font-bold text-xs"
+                    asChild
                   >
-                    <SiLine className="w-5 h-5 flex-shrink-0" />
-                    <span className="truncate">友だち追加してクーポンGET</span>
-                  </a>
-                </Button>
+                    <a
+                      href={shop.lineAccountUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="link-shop-line-account"
+                      className="flex items-center justify-center gap-1.5 whitespace-nowrap overflow-hidden"
+                    >
+                      <SiLine className="w-5 h-5 flex-shrink-0" />
+                      <span className="truncate">公式LINEアカウント追加はこちら</span>
+                    </a>
+                  </Button>
+                )}
               </div>
             </Card>
           )}
@@ -329,6 +363,18 @@ export default function DetailPage() {
               {shop.description}
             </p>
           </Card>
+
+          {shop.reservationUrl && (
+            <Button
+              className="w-full bg-primary text-primary-foreground font-bold py-6 text-base"
+              asChild
+            >
+              <Link href={shop.reservationUrl} data-testid="link-reservation-mid">
+                <CalendarCheck className="w-5 h-5 mr-2" />
+                予約する
+              </Link>
+            </Button>
+          )}
 
           <Card className="overflow-visible p-5">
             <h2 className="font-bold text-base mb-3" data-testid="text-info-title">
@@ -398,11 +444,11 @@ export default function DetailPage() {
 
           {shop.reservationUrl && (
             <Button
-              className="w-full bg-primary text-primary-foreground font-bold py-6"
+              className="w-full bg-primary text-primary-foreground font-bold py-6 text-base"
               asChild
             >
-              <Link href={shop.reservationUrl} data-testid="link-reservation">
-                <CalendarCheck className="w-4 h-4 mr-2" />
+              <Link href={shop.reservationUrl} data-testid="link-reservation-bottom">
+                <CalendarCheck className="w-5 h-5 mr-2" />
                 予約する
               </Link>
             </Button>
@@ -427,14 +473,94 @@ export default function DetailPage() {
         <div className="max-w-3xl mx-auto text-center">
           <Link href="/app">
             <span className="text-sm font-bold text-primary cursor-pointer" data-testid="link-footer-detail-home">
-              かながわ西部おでかけナビ
+              神奈川おでかけナビ
             </span>
           </Link>
           <p className="text-xs text-muted-foreground mt-2">
-            &copy; 2026 かながわ西部おでかけナビ All Rights Reserved.
+            &copy; 2026 神奈川おでかけナビ All Rights Reserved.
           </p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function CouponCard({
+  coupon,
+  shopName,
+  acquired,
+  onAcquire,
+  isLine = false,
+}: {
+  coupon: Coupon;
+  shopName: string;
+  acquired: boolean;
+  onAcquire: () => void;
+  isLine?: boolean;
+}) {
+  const borderColor = isLine ? "border-[#06C755]/20" : "border-card-border";
+  const expired = coupon.expiryDate ? new Date(coupon.expiryDate) < new Date() : false;
+
+  return (
+    <div
+      className={`bg-card rounded-md p-4 border ${borderColor} ${expired ? "opacity-60" : ""}`}
+      data-testid={`card-coupon-${coupon.id}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            {coupon.isFirstTimeOnly && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                初回限定
+              </span>
+            )}
+            {expired && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
+                期限切れ
+              </span>
+            )}
+          </div>
+          <h4 className="font-bold text-sm mb-1">{coupon.title}</h4>
+          {coupon.discount && (
+            <p className="text-lg font-bold text-[#06C755] mb-1">{coupon.discount}</p>
+          )}
+          {coupon.description && (
+            <p className="text-xs text-muted-foreground">{coupon.description}</p>
+          )}
+          {coupon.expiryDate && (
+            <div className={`flex items-center gap-1 mt-1.5 text-[10px] ${expired ? "text-red-500" : "text-muted-foreground"}`}>
+              <CalendarX2 className="w-3 h-3" />
+              有効期限: {new Date(coupon.expiryDate).toLocaleDateString("ja-JP")}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={onAcquire}
+          disabled={acquired || expired}
+          className={`flex-shrink-0 flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full transition-all ${
+            acquired
+              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+              : expired
+              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+              : "bg-[#06C755] text-white hover:bg-[#05a847] active:scale-95"
+          }`}
+          data-testid={`button-acquire-coupon-${coupon.id}`}
+        >
+          {acquired ? (
+            <>
+              <CheckCircle className="w-3.5 h-3.5" />
+              取得済み
+            </>
+          ) : (
+            <>
+              <Ticket className="w-3.5 h-3.5" />
+              取得する
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
