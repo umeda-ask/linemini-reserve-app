@@ -39,24 +39,7 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-// Lazy initialization flag
-let initialized = false;
-
-async function initializeApp() {
-  if (initialized) return;
-  
-  try {
-    const { runMigrations } = await import("../server/migrate");
-    await runMigrations();
-
-    const { seedDatabase } = await import("../server/seed");
-    await seedDatabase();
-  } catch (error) {
-    console.error("Initialization error:", error);
-  }
-  
-  initialized = true;
-}
+// No initialization needed - DB is already set up
 
 // Import storage and routes inline
 import { storage } from "../server/storage";
@@ -307,7 +290,7 @@ app.post("/api/shops/:shopId/staff", (req, res) => {
 });
 
 // ログイン
-app.post("/api/login", async (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -330,7 +313,7 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-app.post("/api/logout", (req, res) => {
+app.post("/api/auth/logout", (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       return res.status(500).json({ message: "Logout failed" });
@@ -339,7 +322,7 @@ app.post("/api/logout", (req, res) => {
   });
 });
 
-app.get("/api/me", async (req, res) => {
+app.get("/api/auth/me", async (req, res) => {
   if (!req.session.userId) {
     return res.status(401).json({ message: "Not authenticated" });
   }
@@ -360,6 +343,5 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 // Vercel handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  await initializeApp();
   return app(req as any, res as any);
 }
