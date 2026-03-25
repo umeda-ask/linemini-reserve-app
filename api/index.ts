@@ -905,6 +905,79 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
   
   
+  
+  // ─── Stripe決済エンドポイント ───
+  const getStripeClient = () => {
+    const Stripe = require('stripe');
+    return new Stripe(process.env.STRIPE_SECRET_KEY || '');
+  };
+
+  // Stripe公開キーを返す
+  app.get("/api/stripe/config", (_req, res) => {
+    res.json({ publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '' });
+  });
+
+  // Stripe Connect接続状態確認
+  app.get("/api/stripe/connect/status/:shopId", async (req, res) => {
+    try {
+      const shopId = parseInt(req.params.shopId);
+      const rows = await sql`SELECT id, name, stripe_connect_id, stripe_connect_status FROM shops WHERE id = ${shopId}`;
+      if (!rows.length) return res.status(404).json({ error: "Shop not found" });
+      const shop = rows[0];
+      res.json({
+        shopId,
+        accountId: shop.stripe_connect_id,
+        status: shop.stripe_connect_status,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // 事前決済用PaymentIntent作成
+  app.post("/api/stripe/connect/payment-intent", async (req, res) => {
+    try {
+      const { shopId, amount, courseId, courseName } = req.body;
+      if (!shopId || !amount) return res.status(400).json({ error: "shopId and amount required" });
+
+      const rows = await sql`SELECT stripe_connect_id, stripe_connect_status FROM shops WHERE id = ${shopId}`;
+      if (!rows.length) return res.status(404).json({ error: "Shop not found" });
+      const shop = rows[0];
+
+      if (!shop.stripe_connect_id) {
+        return res.status(400).json({ error: "This shop has not connected Stripe yet" });
+      }
+
+      const stripe = getStripeClient();
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(amount),
+        currency: 'jpy',
+        payment_method_types: ['card'],
+        description: courseName || 'コース予約',
+        metadata: { shop_id: String(shopId), course_id: courseId || '' },
+        transfer_data: { destination: shop.stripe_connect_id },
+        application_fee_amount: Math.round(amount * 0.05),
+      });
+
+      res.json({ clientSecret: paymentIntent.client_secret });
+    } catch (e: any) {
+      console.error("PaymentIntent error:", e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Stripeアカウント設定（内部用）
+  app.post("/api/fix-stripe-accounts", async (_req, res) => {
+    try {
+      await sql`UPDATE shops SET stripe_connect_id = acct_1TEsH7DJNIHpMLg5, stripe_connect_status = 'active' WHERE id = 6`;
+      await sql`UPDATE shops SET stripe_connect_id = acct_1TEsHBDOMXLg7N59, stripe_connect_status = 'active' WHERE id = 14`;
+      const rows = await sql`SELECT id, name, stripe_connect_id, stripe_connect_status FROM shops WHERE stripe_connect_id IS NOT NULL`;
+      res.json({ ok: true, updated: rows });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ─── 店舗のsubcategoryをスラッグに修正 ───
   app.post("/api/fix-subcategory-slugs", async (_req, res) => {
     try {
