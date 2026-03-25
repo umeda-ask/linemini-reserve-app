@@ -26,7 +26,7 @@ function verifyPassword(password: string, hash: string): boolean {
 // ─────────────────────────────
 // DB接続
 // ─────────────────────────────
-const sql = neon(process.env.DATABASE_URL!);
+const sql = neon(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL!);
 
 // ─────────────────────────────
 // スキーマ定義（インライン）
