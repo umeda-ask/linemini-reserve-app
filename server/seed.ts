@@ -445,6 +445,8 @@ export async function seedDatabase() {
         name:            seedShop.name,
         description:     seedShop.description,
         areaId:          area.id,
+        area:            seedShop.areaSlug,
+        category:        seedShop.categorySlugs[0] ?? "",
         imageUrl:        seedShop.imageUrl,
         address:         seedShop.address,
         phone:           seedShop.phone,

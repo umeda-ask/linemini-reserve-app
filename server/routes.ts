@@ -4,16 +4,13 @@ import { storage } from "./storage";
 import {
   insertShopSchema,
   insertCouponSchema,
-  insertStoreStaffSchema,
-  insertStoreServiceSchema,
-  insertStoreSlotSchema,
-  insertReservationSchema,
 } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import express from "express";
 import { nanoid } from "nanoid";
+import { bookingManager } from "./booking-store";
 
 const uploadsDir = path.join(process.cwd(), "server", "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -111,10 +108,18 @@ export async function registerRoutes(
 
   app.post("/api/shops", async (req, res) => {
     try {
+      const body = req.body;
+      let areaId = body.areaId;
+      if (!areaId && body.area) {
+        const allAreas = await storage.getAreas();
+        const found = allAreas.find((a) => a.slug === body.area);
+        if (found) areaId = found.id;
+      }
       const parsed = insertShopSchema.safeParse({
         displayOrder: 0,
         slug: nanoid(10),
-        ...req.body,
+        ...body,
+        areaId: areaId ?? body.areaId,
       });
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request body", errors: parsed.error.errors });
@@ -126,7 +131,6 @@ export async function registerRoutes(
     }
   });
 
-  // slugルートは /:id より先に定義する必要がある
   app.get("/api/shops/slug/:slug", async (req, res) => {
     try {
       const shop = await storage.getShopBySlug(req.params.slug);
@@ -175,7 +179,6 @@ export async function registerRoutes(
     }
   });
 
-  // いいね
   app.post("/api/shops/:id/like", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -272,289 +275,277 @@ export async function registerRoutes(
   });
 
   // ─────────────────────────────
+  // ブッキング（インメモリ booking-store ベース）
+  // ─────────────────────────────
+
   // スタッフ
-  // ─────────────────────────────
-  app.get("/api/shops/:shopId/staff", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      if (isNaN(shopId)) {
-        return res.status(400).json({ message: "Invalid shop ID" });
-      }
-      const staff = await storage.getStaffByShopId(shopId);
-      res.json(staff);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch staff" });
-    }
+  app.get("/api/shops/:shopId/staff", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.json([]);
+    const staffWithCourseIds = store.staff.map((s) => ({
+      ...s,
+      courseIds: store.courses.filter((c) => c.staffIds.includes(s.id)).map((c) => c.id),
+    }));
+    res.json(staffWithCourseIds);
   });
 
-  app.post("/api/shops/:shopId/staff", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      if (isNaN(shopId)) {
-        return res.status(400).json({ message: "Invalid shop ID" });
-      }
-      const parsed = insertStoreStaffSchema.omit({ shopId: true }).safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid request body", errors: parsed.error.errors });
-      }
-      const staff = await storage.createStaff({ ...parsed.data, shopId });
-      res.status(201).json(staff);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to create staff" });
-    }
+  app.post("/api/shops/:shopId/staff", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const { courseIds, ...rest } = req.body;
+    const newStaff = { id: `s${shopId}-${store.genId()}`, courseIds: courseIds || [], ...rest };
+    store.staff.push(newStaff);
+    res.status(201).json(newStaff);
   });
 
-  app.put("/api/shops/:shopId/staff/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid staff ID" });
-      }
-      const partial = insertStoreStaffSchema.partial().safeParse(req.body);
-      if (!partial.success) {
-        return res.status(400).json({ message: "Invalid request body", errors: partial.error.errors });
-      }
-      const staff = await storage.updateStaff(id, partial.data);
-      if (!staff) {
-        return res.status(404).json({ message: "Staff not found" });
-      }
-      res.json(staff);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update staff" });
-    }
+  app.put("/api/shops/:shopId/staff", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const { id, courseIds, ...rest } = req.body;
+    const idx = store.staff.findIndex((s) => s.id === id);
+    if (idx < 0) return res.status(404).json({ message: "Staff not found" });
+    store.staff[idx] = { ...store.staff[idx], ...rest };
+    res.json(store.staff[idx]);
   });
 
-  app.delete("/api/shops/:shopId/staff/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid staff ID" });
-      }
-      const deleted = await storage.deleteStaff(id);
-      if (!deleted) {
-        return res.status(404).json({ message: "Staff not found" });
-      }
-      res.json({ message: "Staff deleted" });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to delete staff" });
-    }
+  app.delete("/api/shops/:shopId/staff", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const id = req.query.id as string;
+    store.staff = store.staff.filter((s) => s.id !== id);
+    res.json({ message: "Staff deleted" });
   });
 
-  // ─────────────────────────────
-  // サービス（旧courses）
-  // ─────────────────────────────
-  app.get("/api/shops/:shopId/services", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      if (isNaN(shopId)) {
-        return res.status(400).json({ message: "Invalid shop ID" });
-      }
-      const services = await storage.getServicesByShopId(shopId);
-      res.json(services);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch services" });
-    }
+  // コース
+  app.get("/api/shops/:shopId/courses", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.json([]);
+    res.json(store.courses);
   });
 
-  app.post("/api/shops/:shopId/services", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      if (isNaN(shopId)) {
-        return res.status(400).json({ message: "Invalid shop ID" });
-      }
-      const parsed = insertStoreServiceSchema.omit({ shopId: true }).safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid request body", errors: parsed.error.errors });
-      }
-      const service = await storage.createService({ ...parsed.data, shopId });
-      res.status(201).json(service);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to create service" });
-    }
+  app.post("/api/shops/:shopId/courses", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const { staffIds, ...rest } = req.body;
+    const newCourse = { id: `c${shopId}-${store.genId()}`, staffIds: staffIds || [], ...rest };
+    store.courses.push(newCourse);
+    res.status(201).json(newCourse);
   });
 
-  app.put("/api/shops/:shopId/services/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid service ID" });
-      }
-      const partial = insertStoreServiceSchema.partial().safeParse(req.body);
-      if (!partial.success) {
-        return res.status(400).json({ message: "Invalid request body", errors: partial.error.errors });
-      }
-      const service = await storage.updateService(id, partial.data);
-      if (!service) {
-        return res.status(404).json({ message: "Service not found" });
-      }
-      res.json(service);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update service" });
-    }
+  app.put("/api/shops/:shopId/courses", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const { id, ...rest } = req.body;
+    const idx = store.courses.findIndex((c) => c.id === id);
+    if (idx < 0) return res.status(404).json({ message: "Course not found" });
+    store.courses[idx] = { ...store.courses[idx], ...rest };
+    res.json(store.courses[idx]);
   });
 
-  app.delete("/api/shops/:shopId/services/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid service ID" });
-      }
-      const deleted = await storage.deleteService(id);
-      if (!deleted) {
-        return res.status(404).json({ message: "Service not found" });
-      }
-      res.json({ message: "Service deleted" });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to delete service" });
-    }
+  app.delete("/api/shops/:shopId/courses", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const id = req.query.id as string;
+    store.courses = store.courses.filter((c) => c.id !== id);
+    res.json({ message: "Course deleted" });
   });
 
-  // ─────────────────────────────
   // スロット
-  // ─────────────────────────────
-  app.get("/api/shops/:shopId/slots", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      if (isNaN(shopId)) {
-        return res.status(400).json({ message: "Invalid shop ID" });
-      }
-      const { staffId, dayOfWeek } = req.query;
-      let slots;
-      if (staffId && dayOfWeek) {
-        slots = await storage.getSlotsByStaffAndDay(
-          parseInt(staffId as string),
-          parseInt(dayOfWeek as string)
-        );
-      } else if (staffId) {
-        slots = await storage.getSlotsByStaffId(parseInt(staffId as string));
+  app.get("/api/shops/:shopId/slots", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.json([]);
+    const { staffId, date } = req.query as { staffId?: string; date?: string };
+    if (staffId && date) {
+      return res.json(store.getTimeSlots(staffId, date));
+    }
+    if (staffId) {
+      return res.json(store.getStaffSlots(staffId));
+    }
+    res.json([]);
+  });
+
+  app.put("/api/shops/:shopId/slots", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const { staffId, dayOfWeek, time, available } = req.body;
+    const slots = (store as any).slots as any[];
+    const existing = slots.find(
+      (s: any) => s.staffId === staffId && s.dayOfWeek === dayOfWeek && s.time === time
+    );
+    if (existing) {
+      existing.available = available;
+    } else {
+      slots.push({ id: store.genId(), staffId, dayOfWeek, time, available });
+    }
+    res.json({ ok: true });
+  });
+
+  app.post("/api/shops/:shopId/slots", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const { staffId, dayOfWeek, times, available } = req.body;
+    const slots = (store as any).slots as any[];
+    for (const time of times || []) {
+      const existing = slots.find(
+        (s: any) => s.staffId === staffId && s.dayOfWeek === dayOfWeek && s.time === time
+      );
+      if (existing) {
+        existing.available = available;
       } else {
-        slots = await storage.getSlotsByShopId(shopId);
+        slots.push({ id: store.genId(), staffId, dayOfWeek, time, available });
       }
-      res.json(slots);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch slots" });
     }
+    res.json({ ok: true });
   });
 
-  app.post("/api/shops/:shopId/slots", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      if (isNaN(shopId)) {
-        return res.status(400).json({ message: "Invalid shop ID" });
-      }
-      const parsed = insertStoreSlotSchema.omit({ shopId: true }).safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid request body", errors: parsed.error.errors });
-      }
-      const slot = await storage.upsertSlot({ ...parsed.data, shopId });
-      res.status(201).json(slot);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to upsert slot" });
-    }
-  });
-
-  // ─────────────────────────────
-  // 予約
-  // ─────────────────────────────
-  app.get("/api/shops/:shopId/reservations", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      if (isNaN(shopId)) {
-        return res.status(400).json({ message: "Invalid shop ID" });
-      }
-      const reservations = await storage.getReservationsByShopId(shopId);
-      res.json(reservations);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch reservations" });
-    }
-  });
-
-  app.post("/api/shops/:shopId/reservations", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      if (isNaN(shopId)) {
-        return res.status(400).json({ message: "Invalid shop ID" });
-      }
-      const parsed = insertReservationSchema.omit({ shopId: true, cancelToken: true }).safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid request body", errors: parsed.error.errors });
-      }
-      const reservation = await storage.createReservation({
-        ...parsed.data,
-        shopId,
-        cancelToken: nanoid(32),
+  // 設定
+  app.get("/api/shops/:shopId/settings", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) {
+      return res.json({
+        store_name: "",
+        store_description: "",
+        store_address: "",
+        store_phone: "",
+        store_email: "",
+        store_hours: "",
+        store_closed_days: "",
+        banner_url: "",
+        staff_selection_enabled: "false",
       });
-      res.status(201).json(reservation);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to create reservation" });
     }
+    res.json(store.settings);
   });
 
-  app.put("/api/shops/:shopId/reservations/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid reservation ID" });
-      }
-      const partial = insertReservationSchema.partial().safeParse(req.body);
-      if (!partial.success) {
-        return res.status(400).json({ message: "Invalid request body", errors: partial.error.errors });
-      }
-      const reservation = await storage.updateReservation(id, partial.data);
-      if (!reservation) {
-        return res.status(404).json({ message: "Reservation not found" });
-      }
-      res.json(reservation);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update reservation" });
-    }
+  app.put("/api/shops/:shopId/settings", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    store.settings = { ...store.settings, ...req.body };
+    res.json(store.settings);
   });
 
-  app.delete("/api/shops/:shopId/reservations/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Failed to delete reservation" });
-      }
-      const deleted = await storage.deleteReservation(id);
-      if (!deleted) {
-        return res.status(404).json({ message: "Reservation not found" });
-      }
-      res.json({ message: "Reservation deleted" });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to delete reservation" });
-    }
+  // 予約
+  app.get("/api/shops/:shopId/reservations", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.json([]);
+    res.json(store.reservations);
   });
 
-  // ─────────────────────────────
+  app.post("/api/shops/:shopId/reservations", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const token = store.genToken();
+    const newReservation = {
+      id: `r${shopId}-${store.genId()}`,
+      cancelToken: token,
+      status: "confirmed" as const,
+      paid: false,
+      ...req.body,
+    };
+    store.reservations.push(newReservation);
+    res.status(201).json(newReservation);
+  });
+
+  app.put("/api/shops/:shopId/reservations", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const { id, ...rest } = req.body;
+    const idx = store.reservations.findIndex((r) => r.id === id);
+    if (idx < 0) return res.status(404).json({ message: "Reservation not found" });
+    store.reservations[idx] = { ...store.reservations[idx], ...rest };
+    res.json(store.reservations[idx]);
+  });
+
+  app.delete("/api/shops/:shopId/reservations", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const id = req.query.id as string;
+    store.reservations = store.reservations.filter((r) => r.id !== id);
+    res.json({ message: "Reservation deleted" });
+  });
+
   // キャンセル
-  // ─────────────────────────────
-  app.get("/api/cancel/:token", async (req, res) => {
-    try {
-      const reservation = await storage.getReservationByCancelToken(req.params.token);
-      if (!reservation) {
-        return res.status(404).json({ message: "予約が見つかりません" });
-      }
-      res.json(reservation);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch reservation" });
-    }
+  app.get("/api/shops/:shopId/cancel/:token", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "予約が見つかりません" });
+    const r = store.reservations.find((r) => r.cancelToken === req.params.token);
+    if (!r) return res.status(404).json({ message: "予約が見つかりません" });
+    const course = store.courses.find((c) => c.id === r.courseId);
+    res.json({
+      id: r.id,
+      customerName: r.customerName,
+      date: r.date,
+      time: r.time,
+      courseId: r.courseId,
+      courseName: course?.name || "",
+      courseDuration: course?.duration || 0,
+      coursePrice: course?.price || 0,
+      status: r.status,
+    });
   });
 
-  app.post("/api/cancel/:token", async (req, res) => {
-    try {
-      const reservation = await storage.getReservationByCancelToken(req.params.token);
-      if (!reservation) {
-        return res.status(404).json({ message: "予約が見つかりません" });
-      }
-      if (reservation.status === "CANCELLED") {
-        return res.json({ ok: true, already: true });
-      }
-      await storage.updateReservation(reservation.id, { status: "CANCELLED" });
-      res.json({ ok: true });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to cancel reservation" });
-    }
+  app.post("/api/shops/:shopId/cancel/:token", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "予約が見つかりません" });
+    const r = store.reservations.find((r) => r.cancelToken === req.params.token);
+    if (!r) return res.status(404).json({ message: "予約が見つかりません" });
+    if (r.status === "cancelled") return res.json({ ok: true, already: true });
+    r.status = "cancelled";
+    res.json({ ok: true });
+  });
+
+  // お問い合わせ
+  app.get("/api/shops/:shopId/inquiries", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.json([]);
+    res.json(store.inquiries);
+  });
+
+  app.post("/api/shops/:shopId/inquiries", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const inquiry = {
+      id: store.genId(),
+      status: "open",
+      createdAt: new Date().toISOString(),
+      email: null,
+      phone: null,
+      ...req.body,
+    };
+    store.inquiries.push(inquiry);
+    res.status(201).json(inquiry);
+  });
+
+  app.put("/api/shops/:shopId/inquiries", (req, res) => {
+    const shopId = parseInt(req.params.shopId);
+    const store = bookingManager.getStore(shopId);
+    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const { id, ...rest } = req.body;
+    const idx = store.inquiries.findIndex((i) => i.id === id);
+    if (idx < 0) return res.status(404).json({ message: "Inquiry not found" });
+    store.inquiries[idx] = { ...store.inquiries[idx], ...rest };
+    res.json(store.inquiries[idx]);
   });
 
   return httpServer;
