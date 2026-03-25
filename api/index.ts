@@ -175,10 +175,22 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
     try {
       const b = req.body;
       const slug = b.slug || crypto.randomUUID().replace(/-/g,'').slice(0,10);
-      const [row] = await sql`INSERT INTO shops (slug, name, description, area_id, area, category, address) VALUES (${slug}, ${b.name||''}, ${b.description||''}, ${b.areaId||1}, ${b.area||''}, ${b.category||''}, ${b.address||''}) RETURNING *`;
-      res.status(201).json(toShop(row));
-    } catch (e: any) { console.error(e); res.status(500).json({ message: "Failed to create shop" }); }
-  });
+      const rows = await sql`INSERT INTO shops (
+        slug, name, description, area_id, area, category, subcategory,
+        address, phone, hours, closed_days, website, display_order,
+        line_account_url, image_url, gallery_image_urls,
+        is_active, enable_staff_assignment, reservation_url, reservation_image_url, like_count
+      ) VALUES (
+        ${slug}, ${b.name||''}, ${b.description||''}, ${b.areaId||1}, ${b.area||''}, ${b.category||''}, ${b.subcategory||null},
+        ${b.address||''}, ${b.phone||null}, ${b.hours||null}, ${b.closedDays||null}, ${b.website||null}, ${b.displayOrder||0},
+        ${b.lineAccountUrl||null}, ${b.imageUrl||''}, ${b.galleryImageUrls||[]},
+        ${b.isActive!==false}, ${b.enableStaffAssignment||false}, ${b.reservationUrl||null}, ${b.reservationImageUrl||null}, ${b.likeCount||0}
+      ) RETURNING *`;
+      res.status(201).json(toShop(rows[0]));
+    } catch (e: any) { console.error("shop create error:", e); res.status(500).json({ message: "Failed to create shop" }); }
+  })
+
+);
 
   app.put("/api/shops/:id", async (req, res) => {
     try {
@@ -547,6 +559,127 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
   // ─── 問い合わせ ───
   app.post("/api/shops/:shopId/inquiries", async (_req, res) => res.status(201).json({ ok: true }));
   app.get("/api/shops/:shopId/inquiries", async (_req, res) => res.json([]));
+
+  
+  // ─── テストデータ一括生成 ───
+  app.post("/api/seed-test", async (_req, res) => {
+    try {
+      const existing = await sql`SELECT id FROM shops WHERE slug = 'test-salon-hanagokoro'`;
+      let shopId: number;
+      if (existing.length > 0) {
+        shopId = existing[0].id;
+        await sql`DELETE FROM booking_courses WHERE shop_id = ${shopId}`;
+        await sql`DELETE FROM booking_staff WHERE shop_id = ${shopId}`;
+        await sql`DELETE FROM booking_settings WHERE shop_id = ${shopId}`;
+        await sql`DELETE FROM booking_reservations WHERE shop_id = ${shopId}`;
+        await sql`DELETE FROM coupons WHERE shop_id = ${shopId}`;
+        await sql`UPDATE shops SET
+          name='総合サロン はなごころ', description='小田原駅徒歩5分。ヘア・エステ・ネイル・リラクゼーションを一か所で。完全予約制の上質な空間。',
+          area_id=1, area='小田原', category='美容', subcategory='トータルビューティー',
+          address='神奈川県小田原市南町2-3-15 はなごころビル2F', phone='0465-33-8899',
+          hours='10:00〜20:00（最終受付 19:00）', closed_days='毎週火曜日・第1月曜日',
+          website='https://salon-hanagokoro.jp', display_order=99,
+          line_account_url='https://line.me/R/ti/p/@salon-hanagokoro',
+          image_url='https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80',
+          gallery_image_urls=ARRAY['https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80','https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=800&q=80','https://images.unsplash.com/photo-1573461160327-a85cf5a11ad5?w=800&q=80'],
+          is_active=true, enable_staff_assignment=true, like_count=56, updated_at=NOW()
+          WHERE id=${shopId}`;
+      } else {
+        const shopRows = await sql`INSERT INTO shops (
+          slug, name, description, area_id, area, category, subcategory,
+          address, phone, hours, closed_days, website, display_order,
+          line_account_url, image_url, gallery_image_urls,
+          is_active, enable_staff_assignment, like_count
+        ) VALUES (
+          'test-salon-hanagokoro', '総合サロン はなごころ',
+          '小田原駅徒歩5分。ヘア・エステ・ネイル・リラクゼーションを一か所で。完全予約制の上質な空間。',
+          1, '小田原', '美容', 'トータルビューティー',
+          '神奈川県小田原市南町2-3-15 はなごころビル2F', '0465-33-8899',
+          '10:00〜20:00（最終受付 19:00）', '毎週火曜日・第1月曜日',
+          'https://salon-hanagokoro.jp', 99,
+          'https://line.me/R/ti/p/@salon-hanagokoro',
+          'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80',
+          ARRAY['https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80','https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=800&q=80','https://images.unsplash.com/photo-1573461160327-a85cf5a11ad5?w=800&q=80'],
+          true, true, 56
+        ) RETURNING id`;
+        shopId = shopRows[0].id;
+      }
+      await sql`UPDATE shops SET reservation_url = '/app/reservation/' || ${shopId}::text WHERE id = ${shopId}`;
+
+      // ─── スタッフ4名 ───
+      const staffData = [
+        { name: "山田 咲花", role: "オーナーサロニスト", avatar: "山咲" },
+        { name: "中村 恵理", role: "シニアスタイリスト", avatar: "中恵" },
+        { name: "木村 美羽", role: "エステシャン", avatar: "木美" },
+        { name: "林 桜子", role: "ネイリスト", avatar: "林桜" },
+      ];
+      const sIds: string[] = [];
+      for (const st of staffData) {
+        const row = await sql`INSERT INTO booking_staff (shop_id, name, role, avatar) VALUES (${shopId}, ${st.name}, ${st.role}, ${st.avatar}) RETURNING id`;
+        sIds.push(row[0].id.toString());
+      }
+
+      // ─── コース15件 ───
+      const coursesData = [
+        { name: "スタンダードカット", category: "ヘア", duration: 60, price: 4400, description: "カウンセリング・シャンプー・カット・ブロー込み。季節に合わせたスタイル提案。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1592339637627-3568de3c91dc?w=600&q=80", sIdxs: [0,1] },
+        { name: "カット＋カラー（フルカラー）", category: "ヘア", duration: 150, price: 12800, description: "カットとオーガニックフルカラーのセット。ダメージを最小限に抑えた上質なカラーリング。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?w=600&q=80", sIdxs: [0,1] },
+        { name: "カット＋ハイライトカラー", category: "ヘア", duration: 180, price: 18500, description: "立体感を演出するハイライトカラー＋カット。外国人風スタイルや旬の透明感カラーに対応。", prepaymentOnly: true, imageUrl: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&q=80", sIdxs: [0] },
+        { name: "デジタルパーマ（カット込み）", category: "ヘア", duration: 210, price: 22000, description: "熱を使い持続性・再現性の高いウェーブを実現。スタイリングが楽になる人気メニュー。", prepaymentOnly: true, imageUrl: "https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=600&q=80", sIdxs: [0,1] },
+        { name: "縮毛矯正（ストレートパーマ）", category: "ヘア", duration: 240, price: 28600, description: "くせ毛・うねりを根本から改善。艶やかなストレートヘアを実現する高技術メニュー。", prepaymentOnly: true, imageUrl: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&q=80", sIdxs: [0] },
+        { name: "フェイシャルエステ（60分）", category: "エステ", duration: 60, price: 8800, description: "毛穴洗浄・保湿・引き締めの3ステップで透明感のある肌へ。最新機器使用。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=600&q=80", sIdxs: [2] },
+        { name: "フェイシャルエステ（90分・プレミアム）", category: "エステ", duration: 90, price: 14300, description: "クレンジング・スチーム・超音波・高周波・保湿パックの本格コース。特別な日の前に。", prepaymentOnly: true, imageUrl: "https://images.unsplash.com/photo-1552693673-1bf958298935?w=600&q=80", sIdxs: [2] },
+        { name: "痩身エステ（ボディ60分）", category: "エステ", duration: 60, price: 11000, description: "EMSとキャビテーションを組み合わせた本格ボディケア。気になる部位に集中アプローチ。", prepaymentOnly: true, imageUrl: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&q=80", sIdxs: [2] },
+        { name: "毛穴クレンジング（ハイドラフェイシャル）", category: "エステ", duration: 45, price: 6600, description: "水流を使って毛穴の黒ずみや皮脂を徹底除去。ダウンタイムなしで即効性あり。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1573461160327-a85cf5a11ad5?w=600&q=80", sIdxs: [2] },
+        { name: "ジェルネイル（手・ワンカラー）", category: "ネイル", duration: 90, price: 6600, description: "ワンカラーのシンプルジェルネイル。オフ込みで仕上がりが美しい人気定番メニュー。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80", sIdxs: [3] },
+        { name: "ジェルネイル（手・アート込み）", category: "ネイル", duration: 120, price: 9900, description: "季節感のあるアートデザイン込みジェルネイル。SNS映えするスタイリッシュなデザイン。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80", sIdxs: [3] },
+        { name: "フットネイル（ペディキュア＋ジェル）", category: "ネイル", duration: 90, price: 7700, description: "フット角質ケア・ペディキュア・ジェルカラーのフルコース。夏のサンダルシーズンに。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80", sIdxs: [3] },
+        { name: "アロマトリートメント（60分）", category: "リラクゼーション", duration: 60, price: 9900, description: "厳選された天然アロマオイルを使ったスウェディッシュマッサージ。心身の疲れを癒します。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1519823551278-64ac92734fb1?w=600&q=80", sIdxs: [2] },
+        { name: "ヘッドスパ（炭酸泉＋マッサージ45分）", category: "リラクゼーション", duration: 45, price: 5500, description: "炭酸泉シャンプー後に頭皮マッサージ。血行促進・育毛・リフレッシュ効果が高い人気メニュー。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1519823551278-64ac92734fb1?w=600&q=80", sIdxs: [0,1] },
+        { name: "総合美容フルコース（3時間）", category: "プレミアム", duration: 180, price: 39600, description: "カット＋カラー＋フェイシャルエステ＋ヘッドスパの贅沢コース。特別な日に最高の自分に。", prepaymentOnly: true, imageUrl: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&q=80", sIdxs: [0,1,2,3] },
+      ];
+      const createdCourseIds: string[] = [];
+      for (const c of coursesData) {
+        const staffIdsForCourse = c.sIdxs.map((i: number) => sIds[i]);
+        const row = await sql`INSERT INTO booking_courses (shop_id, name, category, duration, price, description, prepayment_only, image_url, staff_ids)
+          VALUES (${shopId}, ${c.name}, ${c.category}, ${c.duration}, ${c.price}, ${c.description}, ${c.prepaymentOnly}, ${c.imageUrl}, ${staffIdsForCourse}) RETURNING id`;
+        createdCourseIds.push(row[0].id.toString());
+      }
+
+      // ─── 設定 ───
+      await sql`INSERT INTO booking_settings (shop_id, store_name, store_description, store_address, store_phone, store_email, store_hours, store_closed_days, banner_url, staff_selection_enabled)
+        VALUES (${shopId}, '総合サロン はなごころ', '小田原駅徒歩5分。ヘア・エステ・ネイル・リラクゼーションを一か所で。', '神奈川県小田原市南町2-3-15 はなごころビル2F', '0465-33-8899', 'info@salon-hanagokoro.jp', '10:00〜20:00（最終受付19:00）', '毎週火曜日・第1月曜日', 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80', 'true')
+        ON CONFLICT (shop_id) DO UPDATE SET store_name='総合サロン はなごころ', store_description='小田原駅徒歩5分。ヘア・エステ・ネイル・リラクゼーションを一か所で。', store_address='神奈川県小田原市南町2-3-15 はなごころビル2F', store_phone='0465-33-8899', store_email='info@salon-hanagokoro.jp', store_hours='10:00〜20:00（最終受付19:00）', store_closed_days='毎週火曜日・第1月曜日', banner_url='https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80', staff_selection_enabled='true', updated_at=NOW()`;
+
+      // ─── クーポン5枚 ───
+      const cps = [
+        { title: "新規お客様限定20%OFF", description: "ご新規様全メニュー20%割引", discountType: "PERCENTAGE", discountValue: 20, expiryDate: "2026-09-30", isFirstTimeOnly: true, isLineAccountCoupon: false },
+        { title: "LINEお友達追加500円OFF", description: "LINEお友達追加で次回ご来店時500円割引", discountType: "AMOUNT", discountValue: 500, expiryDate: "2026-12-31", isFirstTimeOnly: false, isLineAccountCoupon: true },
+        { title: "誕生月特典 ヘッドスパ無料", description: "お誕生月のお客様にヘッドスパ（通常¥5,500）を無料プレゼント", discountType: "FREE", discountValue: 0, expiryDate: "2026-12-31", isFirstTimeOnly: false, isLineAccountCoupon: false },
+        { title: "春の美容応援1,000円OFF", description: "フェイシャル・痩身エステご利用で1,000円引き（6月末まで）", discountType: "AMOUNT", discountValue: 1000, expiryDate: "2026-06-30", isFirstTimeOnly: false, isLineAccountCoupon: false },
+        { title: "平日午前10%OFF", description: "平日10:00〜12:00のご予約で全メニュー10%割引", discountType: "PERCENTAGE", discountValue: 10, expiryDate: "2026-09-30", isFirstTimeOnly: false, isLineAccountCoupon: false },
+      ];
+      for (const cp of cps) {
+        await sql`INSERT INTO coupons (shop_id, title, description, discount_type, discount_value, expiry_date, is_first_time_only, is_line_account_coupon, is_active)
+          VALUES (${shopId}, ${cp.title}, ${cp.description}, ${cp.discountType}::discount_type, ${cp.discountValue}, ${cp.expiryDate}, ${cp.isFirstTimeOnly}, ${cp.isLineAccountCoupon}, true)`;
+      }
+
+      // ─── テスト予約5件 ───
+      const rvs = [
+        { name: "田中 花子", phone: "090-1111-2222", email: "hanako@example.com", date: "2026-04-05", time: "10:00", ci: 0, si: 0, status: "confirmed", paid: false },
+        { name: "鈴木 恵美", phone: "080-3333-4444", email: "emi@example.com", date: "2026-04-07", time: "13:00", ci: 1, si: 1, status: "confirmed", paid: false },
+        { name: "山本 真奈", phone: "070-5555-6666", email: "mana@example.com", date: "2026-04-10", time: "14:30", ci: 5, si: 2, status: "confirmed", paid: true },
+        { name: "伊藤 さくら", phone: "090-7777-8888", email: "sakura@example.com", date: "2026-03-20", time: "11:00", ci: 9, si: 3, status: "visited", paid: true },
+        { name: "渡辺 美里", phone: "080-9999-0000", email: "misato@example.com", date: "2026-03-15", time: "15:00", ci: 12, si: 2, status: "cancelled", paid: false },
+      ];
+      for (const rv of rvs) {
+        const tkn = crypto.randomUUID().replace(/-/g,"");
+        await sql`INSERT INTO booking_reservations (shop_id, customer_name, customer_phone, customer_email, date, time, course_id, staff_id, status, paid, cancel_token)
+          VALUES (${shopId}, ${rv.name}, ${rv.phone}, ${rv.email}, ${rv.date}, ${rv.time}, ${createdCourseIds[rv.ci]}, ${sIds[rv.si]}, ${rv.status}, ${rv.paid}, ${tkn})`;
+      }
+
+      res.json({ ok: true, shopId, staffCount: sIds.length, courseCount: coursesData.length, couponCount: cps.length, reservationCount: rvs.length });
+    } catch (e: any) { console.error("seed-test error:", e); res.status(500).json({ message: "Seed test failed", error: e.message }); }
+  });
 
   // ─── Error handler ───
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
