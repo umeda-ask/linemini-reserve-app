@@ -630,7 +630,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
         { name: "フェイシャルエステ（90分・プレミアム）", category: "エステ", duration: 90, price: 14300, description: "クレンジング・スチーム・超音波・高周波・保湿パックの本格コース。特別な日の前に。", prepaymentOnly: true, imageUrl: "https://images.unsplash.com/photo-1552693673-1bf958298935?w=600&q=80", sIdxs: [2] },
         { name: "痩身エステ（ボディ60分）", category: "エステ", duration: 60, price: 11000, description: "EMSとキャビテーションを組み合わせた本格ボディケア。気になる部位に集中アプローチ。", prepaymentOnly: true, imageUrl: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&q=80", sIdxs: [2] },
         { name: "毛穴クレンジング（ハイドラフェイシャル）", category: "エステ", duration: 45, price: 6600, description: "水流を使って毛穴の黒ずみや皮脂を徹底除去。ダウンタイムなしで即効性あり。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1573461160327-a85cf5a11ad5?w=600&q=80", sIdxs: [2] },
-        { name: "ジェルネイル（手・ワンカラー）", category: "ネイル", duration: 90, price: 6600, description: "ワンカラーのシンプルジェルネイル。オフ込みで仕上がりが美しい人気定番メニュー。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80", sIdxs: [3] },
+        { name: "ジェルネイル（手・ワンカラー）", category: "nail", duration: 90, price: 6600, description: "ワンカラーのシンプルジェルネイル。オフ込みで仕上がりが美しい人気定番メニュー。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80", sIdxs: [3] },
         { name: "ジェルネイル（手・アート込み）", category: "ネイル", duration: 120, price: 9900, description: "季節感のあるアートデザイン込みジェルネイル。SNS映えするスタイリッシュなデザイン。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80", sIdxs: [3] },
         { name: "フットネイル（ペディキュア＋ジェル）", category: "ネイル", duration: 90, price: 7700, description: "フット角質ケア・ペディキュア・ジェルカラーのフルコース。夏のサンダルシーズンに。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80", sIdxs: [3] },
         { name: "アロマトリートメント（60分）", category: "リラクゼーション", duration: 60, price: 9900, description: "厳選された天然アロマオイルを使ったスウェディッシュマッサージ。心身の疲れを癒します。", prepaymentOnly: false, imageUrl: "https://images.unsplash.com/photo-1519823551278-64ac92734fb1?w=600&q=80", sIdxs: [2] },
@@ -690,7 +690,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
       // ─── 新規追加店舗11件の定義 ───
       const newShops = [
         {
-          slug: "odawara-sushi-takumi", name: "小田原鮨処 匠", area_id: 1, area: "小田原", category: "グルメ", subcategory: "寿司・和食",
+          slug: "odawara-sushi-takumi", name: "小田原鮨処 匠", area_id: 1, area: "小田原", category: "グルメ", subcategory: "sushi",
           description: "小田原の新鮮魚介を使った本格江戸前寿司。地魚にこだわり、職人が丁寧に握る一品一品をご堪能ください。",
           address: "神奈川県小田原市魚町1-5-8", phone: "0465-22-3456", hours: "11:30〜22:00（L.O. 21:00）", closed_days: "毎週月曜日",
           image_url: "https://images.unsplash.com/photo-1559410545-0bdcd187e0a6?w=800&q=80",
@@ -699,7 +699,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           coupons: [{ title: "平日ランチ特別割引10%OFF", description: "平日11:30〜14:00のランチタイムに全品10%割引", discount_type: "PERCENTAGE", discount_value: 10, expiry_date: "2026-09-30", is_first_time_only: false, is_line_account_coupon: false }]
         },
         {
-          slug: "yamato-cafe-ameli", name: "大和カフェ アメリ", area_id: 2, area: "大和", category: "グルメ", subcategory: "カフェ",
+          slug: "yamato-cafe-ameli", name: "大和カフェ アメリ", area_id: 2, area: "大和", category: "グルメ", subcategory: "cafe",
           description: "大和駅徒歩3分。自家焙煎コーヒーと手作りスイーツが自慢の居心地の良いカフェ。テラス席あり。",
           address: "神奈川県大和市大和東1-3-22", phone: "046-260-7788", hours: "8:00〜20:00", closed_days: "不定休",
           image_url: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&q=80",
@@ -711,7 +711,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           ]
         },
         {
-          slug: "hadano-seikotsu-takahashi", name: "秦野整骨院 たかはし", area_id: 3, area: "秦野", category: "美容・健康", subcategory: "整骨・整体",
+          slug: "hadano-seikotsu-takahashi", name: "秦野整骨院 たかはし", area_id: 3, area: "秦野", category: "美容・健康", subcategory: "massage",
           description: "国家資格取得の柔道整復師が対応。肩こり・腰痛・スポーツ障害など幅広く対応。予約優先制で待ち時間少なめ。",
           address: "神奈川県秦野市曲松1-2-5", phone: "0463-81-5566", hours: "9:00〜20:00", closed_days: "日曜・祝日",
           image_url: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80",
@@ -730,7 +730,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           }
         },
         {
-          slug: "hiratsuka-yakiniku-toragyu", name: "平塚焼肉 虎牛", area_id: 4, area: "平塚", category: "グルメ", subcategory: "焼肉",
+          slug: "hiratsuka-yakiniku-toragyu", name: "平塚焼肉 虎牛", area_id: 4, area: "平塚", category: "グルメ", subcategory: "washoku",
           description: "国産黒毛和牛専門の本格焼肉店。特上ロース・カルビ・ハラミはじめ、希少部位も取り揃えています。個室完備。",
           address: "神奈川県平塚市紅谷町3-1 虎牛ビル1F", phone: "0463-21-8877", hours: "17:00〜23:00（L.O. 22:00）", closed_days: "毎週火曜日",
           image_url: "https://images.unsplash.com/photo-1558030006-450675393462?w=800&q=80",
@@ -742,7 +742,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           ]
         },
         {
-          slug: "atsugi-fitness-peak", name: "厚木フィットネス PEAK", area_id: 5, area: "厚木", category: "レジャー・体験", subcategory: "スポーツジム",
+          slug: "atsugi-fitness-peak", name: "厚木フィットネス PEAK", area_id: 5, area: "厚木", category: "レジャー・体験", subcategory: "experience",
           description: "最新マシン完備の24時間ジム。パーソナルトレーニング・ヨガ・ピラティスのレッスンも充実。入会金無料キャンペーン中。",
           address: "神奈川県厚木市中町2-4-8 PEAKビル3F", phone: "046-223-4455", hours: "24時間営業", closed_days: "年中無休",
           image_url: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80",
@@ -762,7 +762,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           }
         },
         {
-          slug: "odawara-sakagura-kikunosato", name: "小田原酒蔵 菊の里", area_id: 1, area: "小田原", category: "グルメ", subcategory: "居酒屋・和食",
+          slug: "odawara-sakagura-kikunosato", name: "小田原酒蔵 菊の里", area_id: 1, area: "小田原", category: "グルメ", subcategory: "izakaya",
           description: "地酒と旬の肴が自慢の老舗居酒屋。小田原・神奈川の地酒20種以上を取り揃え。風情ある古民家造りの店内。",
           address: "神奈川県小田原市本町2-7-3", phone: "0465-23-6677", hours: "17:00〜24:00（L.O. 23:00）", closed_days: "毎週水曜日",
           image_url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80",
@@ -771,7 +771,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           coupons: [{ title: "地酒3種飲み比べセット500円OFF", description: "神奈川地酒3種飲み比べセット（通常2,200円→1,700円）", discount_type: "AMOUNT", discount_value: 500, expiry_date: "2026-09-30", is_first_time_only: false, is_line_account_coupon: false }]
         },
         {
-          slug: "yamato-izakaya-mitsuba", name: "大和居酒屋 三葉", area_id: 2, area: "大和", category: "グルメ", subcategory: "居酒屋",
+          slug: "yamato-izakaya-mitsuba", name: "大和居酒屋 三葉", area_id: 2, area: "大和", category: "グルメ", subcategory: "izakaya",
           description: "地元大和で30年愛され続ける居酒屋。コースは4,000円〜ご宴会・女子会・各種飲み会に最適。貸切も承ります。",
           address: "神奈川県大和市大和南1-8-12", phone: "046-268-9900", hours: "17:00〜翌1:00（L.O. 24:00）", closed_days: "日曜日",
           image_url: "https://images.unsplash.com/photo-1514190051997-0f6f39ca5cde?w=800&q=80",
@@ -811,7 +811,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           }
         },
         {
-          slug: "atsugi-onsen-yuraku", name: "厚木温泉スパ 湯楽", area_id: 5, area: "厚木", category: "レジャー・体験", subcategory: "温泉・スパ",
+          slug: "atsugi-onsen-yuraku", name: "厚木温泉スパ 湯楽", area_id: 5, area: "厚木", category: "レジャー・体験", subcategory: "onsen",
           description: "天然温泉を使ったリゾートスパ。露天風呂・サウナ・岩盤浴完備。日帰り入浴から宿泊まで。手ぶらでOK。",
           address: "神奈川県厚木市飯山温泉3-1-1", phone: "046-241-8800", hours: "10:00〜22:00", closed_days: "年2回メンテナンス休業",
           image_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80",
@@ -823,7 +823,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           ]
         },
         {
-          slug: "hadano-bakery-petite-bouquet", name: "秦野パン工房 プチブーケ", area_id: 3, area: "秦野", category: "グルメ", subcategory: "パン・スイーツ",
+          slug: "hadano-bakery-petite-bouquet", name: "秦野パン工房 プチブーケ", area_id: 3, area: "秦野", category: "グルメ", subcategory: "sweets",
           description: "丹沢の天然水を使った自家製天然酵母パンの専門店。毎朝焼きたて50種以上が揃います。イートインスペースあり。",
           address: "神奈川県秦野市本町2-5-1", phone: "0463-83-1122", hours: "7:00〜19:00（売り切れ次第終了）", closed_days: "毎週火曜日・水曜日",
           image_url: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80",
@@ -832,7 +832,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
           coupons: [{ title: "5個以上購入で10%OFF", description: "パン5個以上ご購入のお客様に10%割引", discount_type: "PERCENTAGE", discount_value: 10, expiry_date: "2026-12-31", is_first_time_only: false, is_line_account_coupon: false }]
         },
         {
-          slug: "odawara-wagashi-tskinowa", name: "小田原和菓子 月の輪", area_id: 1, area: "小田原", category: "グルメ", subcategory: "和菓子",
+          slug: "odawara-wagashi-tskinowa", name: "小田原和菓子 月の輪", area_id: 1, area: "小田原", category: "グルメ", subcategory: "sweets",
           description: "創業明治32年の老舗和菓子店。小田原銘菓「月の輪」をはじめ、季節の生菓子・干菓子など丁寧に作り続けています。",
           address: "神奈川県小田原市城内1-1 小田原城近く", phone: "0465-23-1234", hours: "9:00〜18:00", closed_days: "毎週木曜日",
           image_url: "https://images.unsplash.com/photo-1606471191009-63994c53433b?w=800&q=80",
@@ -904,6 +904,63 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
   });
 
   
+  
+  // ─── 店舗のsubcategoryをスラッグに修正 ───
+  app.post("/api/fix-subcategory-slugs", async (_req, res) => {
+    try {
+      // 日本語サブカテゴリ → スラッグマッピング
+      const subcatMap: Record<string, string> = {
+        // gourmet
+        "寿司・和食": "sushi", "寿司・海鮮": "sushi", "和食": "washoku",
+        "洋食": "yoshoku", "中華": "chuka", "イタリアン": "italian",
+        "居酒屋": "izakaya", "居酒屋・和食": "izakaya",
+        "カフェ": "cafe", "ラーメン": "ramen",
+        "焼肉": "washoku", "パン・スイーツ": "sweets", "和菓子": "sweets",
+        "スイーツ": "sweets",
+        // beauty
+        "ヘアサロン": "hair", "エステ": "esthe", "ネイル": "nail",
+        "マッサージ": "massage", "整体": "massage", "整骨・整体": "massage",
+        "マッサージ・整体": "massage", "トータルビューティー": "other",
+        "フィットネス": "fitness",
+        // leisure
+        "温泉・スパ": "onsen", "スパ": "onsen",
+        "アウトドア": "outdoor", "体験・教室": "experience",
+        "スポーツジム": "experience", "観光スポット": "sightseeing",
+        // shopping
+        "ファッション": "fashion", "雑貨": "goods",
+        "食料品": "food", "食料品・惣菜": "food",
+        // service
+        "修理": "repair", "修理・メンテナンス": "repair",
+        "教室・スクール": "school",
+        // medical
+        "病院・クリニック": "clinic", "歯科": "dental",
+      };
+
+      let updated = 0;
+      const shops = await sql`SELECT id, name, subcategory FROM shops`;
+
+      for (const shop of shops) {
+        const current = shop.subcategory;
+        // nullまたは"null"文字列はNULLに
+        if (!current || current === 'null') {
+          await sql`UPDATE shops SET subcategory = NULL WHERE id = ${shop.id}`;
+          updated++;
+          continue;
+        }
+        const newSub = subcatMap[current];
+        if (newSub && newSub !== current) {
+          await sql`UPDATE shops SET subcategory = ${newSub} WHERE id = ${shop.id}`;
+          updated++;
+        }
+      }
+
+      const fixed = await sql`SELECT id, name, category, subcategory FROM shops ORDER BY id`;
+      res.json({ ok: true, updated, shops: fixed });
+    } catch (e: any) {
+      res.status(500).json({ message: "Fix subcategory slugs failed", error: e.message });
+    }
+  });
+
   // ─── 店舗のarea/categoryをスラッグに修正 ───
   app.post("/api/fix-shop-slugs", async (_req, res) => {
     try {
