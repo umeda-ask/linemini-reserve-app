@@ -185,28 +185,35 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid shop ID" });
       const b = req.body;
-      const setClauses: string[] = [];
-      const vals: any[] = [];
-      const fields: Record<string, string> = {
-        name: 'name', description: 'description', area: 'area', category: 'category', subcategory: 'subcategory',
-        address: 'address', phone: 'phone', hours: 'hours', closedDays: 'closed_days', website: 'website',
-        displayOrder: 'display_order', lineAccountUrl: 'line_account_url', imageUrl: 'image_url',
-        galleryImageUrls: 'gallery_image_urls', isActive: 'is_active', enableStaffAssignment: 'enable_staff_assignment',
-        reservationUrl: 'reservation_url', reservationImageUrl: 'reservation_image_url',
-        likeCount: 'like_count', stripeConnectId: 'stripe_connect_id', stripeConnectStatus: 'stripe_connect_status',
-      };
-      for (const [jsKey, dbCol] of Object.entries(fields)) {
-        if (b[jsKey] !== undefined) { setClauses.push(`${dbCol} = $${vals.length+1}`); vals.push(b[jsKey]); }
-      }
-      if (setClauses.length === 0) { const rows = await sql`SELECT * FROM shops WHERE id = ${id}`; return res.json(toShop(rows[0])); }
-      setClauses.push(`updated_at = NOW()`);
-      const q = `UPDATE shops SET ${setClauses.join(', ')} WHERE id = $${vals.length+1} RETURNING *`;
-      vals.push(id);
-      const rows = await sql(q, vals);
+      if (b.name !== undefined) await sql`UPDATE shops SET name=${b.name} WHERE id=${id}`;
+      if (b.description !== undefined) await sql`UPDATE shops SET description=${b.description} WHERE id=${id}`;
+      if (b.area !== undefined) await sql`UPDATE shops SET area=${b.area} WHERE id=${id}`;
+      if (b.category !== undefined) await sql`UPDATE shops SET category=${b.category} WHERE id=${id}`;
+      if (b.subcategory !== undefined) await sql`UPDATE shops SET subcategory=${b.subcategory} WHERE id=${id}`;
+      if (b.address !== undefined) await sql`UPDATE shops SET address=${b.address} WHERE id=${id}`;
+      if (b.phone !== undefined) await sql`UPDATE shops SET phone=${b.phone} WHERE id=${id}`;
+      if (b.hours !== undefined) await sql`UPDATE shops SET hours=${b.hours} WHERE id=${id}`;
+      if (b.closedDays !== undefined) await sql`UPDATE shops SET closed_days=${b.closedDays} WHERE id=${id}`;
+      if (b.website !== undefined) await sql`UPDATE shops SET website=${b.website} WHERE id=${id}`;
+      if (b.displayOrder !== undefined) await sql`UPDATE shops SET display_order=${b.displayOrder} WHERE id=${id}`;
+      if (b.lineAccountUrl !== undefined) await sql`UPDATE shops SET line_account_url=${b.lineAccountUrl} WHERE id=${id}`;
+      if (b.imageUrl !== undefined) await sql`UPDATE shops SET image_url=${b.imageUrl} WHERE id=${id}`;
+      if (b.galleryImageUrls !== undefined) await sql`UPDATE shops SET gallery_image_urls=${b.galleryImageUrls} WHERE id=${id}`;
+      if (b.isActive !== undefined) await sql`UPDATE shops SET is_active=${b.isActive} WHERE id=${id}`;
+      if (b.enableStaffAssignment !== undefined) await sql`UPDATE shops SET enable_staff_assignment=${b.enableStaffAssignment} WHERE id=${id}`;
+      if (b.reservationUrl !== undefined) await sql`UPDATE shops SET reservation_url=${b.reservationUrl} WHERE id=${id}`;
+      if (b.reservationImageUrl !== undefined) await sql`UPDATE shops SET reservation_image_url=${b.reservationImageUrl} WHERE id=${id}`;
+      if (b.likeCount !== undefined) await sql`UPDATE shops SET like_count=${b.likeCount} WHERE id=${id}`;
+      if (b.stripeConnectId !== undefined) await sql`UPDATE shops SET stripe_connect_id=${b.stripeConnectId} WHERE id=${id}`;
+      if (b.stripeConnectStatus !== undefined) await sql`UPDATE shops SET stripe_connect_status=${b.stripeConnectStatus} WHERE id=${id}`;
+      await sql`UPDATE shops SET updated_at=NOW() WHERE id=${id}`;
+      const rows = await sql`SELECT * FROM shops WHERE id=${id}`;
       if (!rows[0]) return res.status(404).json({ message: "Shop not found" });
       res.json(toShop(rows[0]));
     } catch (e: any) { console.error("shop update error:", e); res.status(500).json({ message: "Failed to update shop" }); }
   });
+
+);
 
   app.post("/api/shops/:id/like", async (req, res) => {
     try {
@@ -252,18 +259,23 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid coupon ID" });
       const b = req.body;
-      const setClauses: string[] = []; const vals: any[] = [];
-      const fields: Record<string, string> = { title: 'title', description: 'description', discount: 'discount', discountType: 'discount_type', discountValue: 'discount_value', expiryDate: 'expiry_date', isFirstTimeOnly: 'is_first_time_only', isLineAccountCoupon: 'is_line_account_coupon', isActive: 'is_active' };
-      for (const [jsKey, dbCol] of Object.entries(fields)) {
-        if (b[jsKey] !== undefined) { setClauses.push(`${dbCol} = $${vals.length+1}`); vals.push(b[jsKey]); }
-      }
-      if (setClauses.length === 0) { const r = await sql`SELECT * FROM coupons WHERE id = ${id}`; return res.json(toCoupon(r[0])); }
-      setClauses.push('updated_at = NOW()');
-      const rows = await sql(`UPDATE coupons SET ${setClauses.join(', ')} WHERE id = $${vals.length+1} RETURNING *`, [...vals, id]);
+      if (b.title !== undefined) await sql`UPDATE coupons SET title=${b.title} WHERE id=${id}`;
+      if (b.description !== undefined) await sql`UPDATE coupons SET description=${b.description} WHERE id=${id}`;
+      if (b.discount !== undefined) await sql`UPDATE coupons SET discount=${b.discount} WHERE id=${id}`;
+      if (b.discountType !== undefined) await sql`UPDATE coupons SET discount_type=${b.discountType}::discount_type WHERE id=${id}`;
+      if (b.discountValue !== undefined) await sql`UPDATE coupons SET discount_value=${b.discountValue} WHERE id=${id}`;
+      if (b.expiryDate !== undefined) await sql`UPDATE coupons SET expiry_date=${b.expiryDate} WHERE id=${id}`;
+      if (b.isFirstTimeOnly !== undefined) await sql`UPDATE coupons SET is_first_time_only=${b.isFirstTimeOnly} WHERE id=${id}`;
+      if (b.isLineAccountCoupon !== undefined) await sql`UPDATE coupons SET is_line_account_coupon=${b.isLineAccountCoupon} WHERE id=${id}`;
+      if (b.isActive !== undefined) await sql`UPDATE coupons SET is_active=${b.isActive} WHERE id=${id}`;
+      await sql`UPDATE coupons SET updated_at=NOW() WHERE id=${id}`;
+      const rows = await sql`SELECT * FROM coupons WHERE id=${id}`;
       if (!rows[0]) return res.status(404).json({ message: "Coupon not found" });
       res.json(toCoupon(rows[0]));
-    } catch (e: any) { console.error(e); res.status(500).json({ message: "Failed to update coupon" }); }
+    } catch (e: any) { console.error("coupon update error:", e); res.status(500).json({ message: "Failed to update coupon" }); }
   });
+
+);
 
   app.delete("/api/coupons/:id", async (req, res) => {
     try {
@@ -477,20 +489,23 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
     if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
     try {
       const { id, status, paid, customerName, customerPhone, customerEmail, date, time } = req.body;
-      const setClauses: string[] = []; const vals: any[] = [];
-      if (status !== undefined) { setClauses.push(`status=$${vals.length+1}`); vals.push(status); }
-      if (paid !== undefined) { setClauses.push(`paid=$${vals.length+1}`); vals.push(paid); }
-      if (customerName) { setClauses.push(`customer_name=$${vals.length+1}`); vals.push(customerName); }
-      if (customerPhone) { setClauses.push(`customer_phone=$${vals.length+1}`); vals.push(customerPhone); }
-      if (customerEmail) { setClauses.push(`customer_email=$${vals.length+1}`); vals.push(customerEmail); }
-      if (date) { setClauses.push(`date=$${vals.length+1}`); vals.push(date); }
-      if (time) { setClauses.push(`time=$${vals.length+1}`); vals.push(time); }
-      if (setClauses.length === 0) return res.status(400).json({ message: "No fields to update" });
-      const rows = await sql(`UPDATE booking_reservations SET ${setClauses.join(',')} WHERE id=$${vals.length+1} AND shop_id=$${vals.length+2} RETURNING *`, [...vals, parseInt(id), shopId]);
+      const resId = parseInt(id);
+      if (isNaN(resId)) return res.status(400).json({ message: "Invalid reservation ID" });
+      // Update each field with tagged template literals
+      if (status !== undefined) await sql`UPDATE booking_reservations SET status=${status} WHERE id=${resId} AND shop_id=${shopId}`;
+      if (paid !== undefined) await sql`UPDATE booking_reservations SET paid=${paid} WHERE id=${resId} AND shop_id=${shopId}`;
+      if (customerName !== undefined) await sql`UPDATE booking_reservations SET customer_name=${customerName} WHERE id=${resId} AND shop_id=${shopId}`;
+      if (customerPhone !== undefined) await sql`UPDATE booking_reservations SET customer_phone=${customerPhone} WHERE id=${resId} AND shop_id=${shopId}`;
+      if (customerEmail !== undefined) await sql`UPDATE booking_reservations SET customer_email=${customerEmail} WHERE id=${resId} AND shop_id=${shopId}`;
+      if (date !== undefined) await sql`UPDATE booking_reservations SET date=${date} WHERE id=${resId} AND shop_id=${shopId}`;
+      if (time !== undefined) await sql`UPDATE booking_reservations SET time=${time} WHERE id=${resId} AND shop_id=${shopId}`;
+      const rows = await sql`SELECT * FROM booking_reservations WHERE id=${resId} AND shop_id=${shopId}`;
       if (!rows[0]) return res.status(404).json({ message: "Reservation not found" });
       res.json(toReservation(rows[0]));
-    } catch (e: any) { res.status(500).json({ message: "Failed to update reservation" }); }
+    } catch (e: any) { console.error("res update error:", e); res.status(500).json({ message: "Failed to update reservation" }); }
   });
+
+);
 
   app.delete("/api/shops/:shopId/reservations", async (req, res) => {
     const shopId = parseInt(req.params.shopId);
