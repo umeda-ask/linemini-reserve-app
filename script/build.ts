@@ -59,6 +59,8 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  console.log("build complete!");
 }
 
 buildAll().catch((err) => {
