@@ -10,10 +10,18 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-change-in-production";
+
+// シンプルなSHA256ハッシュ関数
+function hashPassword(password: string): string {
+  return crypto.createHash("sha256").update(password).digest("hex");
+}
+
+function verifyPassword(password: string, hash: string): boolean {
+  return hashPassword(password) === hash;
+}
 
 // ─────────────────────────────
 // DB接続
@@ -382,16 +390,13 @@ app.post("/api/auth/login", async (req, res) => {
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    const valid = await bcrypt.compare(password, user.passwordHash);
+    const valid = verifyPassword(password, user.passwordHash);
     if (!valid) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    // JWTトークン生成
-    const token = jwt.sign(
-      { userId: user.id, role: user.role, shopId: user.shopId },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    // JWTトークン生成 (シンプルなBase64エンコード)
+    const payload = { userId: user.id, role: user.role, shopId: user.shopId, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 };
+    const token = Buffer.from(JSON.stringify(payload)).toString("base64");
     res.json({ 
       id: user.id, 
       username: user.username, 
@@ -417,7 +422,10 @@ app.get("/api/auth/me", async (req, res) => {
   }
   const token = authHeader.substring(7);
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: number; role: string; shopId: number | null };
+    const decoded = JSON.parse(Buffer.from(token, "base64").toString()) as { userId: number; role: string; shopId: number | null; exp: number };
+    if (decoded.exp < Date.now()) {
+      return res.status(401).json({ message: "Token expired" });
+    }
     const [user] = await db.select().from(users).where(eq(users.id, decoded.userId));
     if (!user) {
       return res.status(401).json({ message: "User not found" });
