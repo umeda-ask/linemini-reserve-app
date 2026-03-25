@@ -903,6 +903,41 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
     }
   });
 
+  
+  // ─── 店舗のarea/categoryをスラッグに修正 ───
+  app.post("/api/fix-shop-slugs", async (_req, res) => {
+    try {
+      const areaMap: Record<string, string> = {
+        "小田原": "odawara", "大和": "yamato", "秦野": "hadano",
+        "平塚": "hiratsuka", "厚木": "atsugi", "海老名": "ebina",
+        "伊勢原": "isehara", "茅ヶ崎": "chigasaki", "藤沢": "fujisawa",
+        "鎌倉": "kamakura", "横浜": "yokohama", "二宮": "ninomiya"
+      };
+      const categoryMap: Record<string, string> = {
+        "グルメ": "gourmet", "美容": "beauty", "美容・健康": "beauty",
+        "ショッピング": "shopping", "レジャー": "leisure", "レジャー・体験": "leisure",
+        "サービス": "service", "医療": "medical", "医療・福祉": "medical"
+      };
+
+      let updated = 0;
+      const shops = await sql`SELECT id, area, category FROM shops`;
+
+      for (const shop of shops) {
+        const newArea = areaMap[shop.area] || shop.area;
+        const newCat = categoryMap[shop.category] || shop.category;
+        if (newArea !== shop.area || newCat !== shop.category) {
+          await sql`UPDATE shops SET area = ${newArea}, category = ${newCat} WHERE id = ${shop.id}`;
+          updated++;
+        }
+      }
+
+      const fixed = await sql`SELECT id, name, area, category FROM shops ORDER BY id`;
+      res.json({ ok: true, updated, shops: fixed });
+    } catch (e: any) {
+      res.status(500).json({ message: "Fix slugs failed", error: e.message });
+    }
+  });
+
   // ─── Error handler ───
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     console.error("Internal error:", err);
