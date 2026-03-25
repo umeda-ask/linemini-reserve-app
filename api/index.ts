@@ -9,7 +9,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { nanoid } from "nanoid";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 
@@ -200,7 +199,7 @@ app.post("/api/shops", async (req, res) => {
     }
     const parsed = insertShopSchema.safeParse({
       displayOrder: 0,
-      slug: nanoid(10),
+      slug: crypto.randomUUID().replace(/-/g, "").substring(0, 10),
       ...body,
       areaId: areaId ?? body.areaId,
     });
