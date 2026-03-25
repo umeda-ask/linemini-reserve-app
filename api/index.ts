@@ -11,7 +11,8 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import crypto from "crypto";
-import bcrypt from "bcryptjs";
+import * as bcryptModule from "bcryptjs";
+const bcrypt = (bcryptModule as any).default || bcryptModule;
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-change-in-production";
 
@@ -420,7 +421,7 @@ app.post("/api/auth/login", async (req, res) => {
       } catch (e) {
         console.error("[v1] bcrypt compare error:", e);
       }
-      console.log("[v1] Password comparison:", { plainMatch, sha256Match, bcryptMatch, hashStart: user.passwordHash?.substring(0, 10) });
+      console.log("[v1] Password comparison:", { plainMatch, sha256Match, bcryptMatch, hashStart: user.passwordHash?.substring(0, 10), bcryptType: typeof bcrypt?.compare });
       const valid = plainMatch || sha256Match || bcryptMatch;
     if (!valid) {
       return res.status(401).json({ message: "Invalid credentials" });
