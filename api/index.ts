@@ -395,8 +395,15 @@ app.post("/api/auth/login", async (req, res) => {
     // パスワード照合: bcrypt / SHA256 / プレーンテキストの順に試みる
       const plainMatch = user.passwordHash === password;
       const sha256Match = hashPassword(password) === user.passwordHash;
-      const bcryptMatch = user.passwordHash.startsWith("$2") ? await bcrypt.compare(password, user.passwordHash) : false;
-      console.log("[v1] Password comparison:", { plainMatch, sha256Match, bcryptMatch });
+      let bcryptMatch = false;
+      try {
+        if (user.passwordHash && user.passwordHash.startsWith("$2")) {
+          bcryptMatch = await bcrypt.compare(String(password), String(user.passwordHash));
+        }
+      } catch (e) {
+        console.error("[v1] bcrypt compare error:", e);
+      }
+      console.log("[v1] Password comparison:", { plainMatch, sha256Match, bcryptMatch, hashStart: user.passwordHash?.substring(0, 10) });
       const valid = plainMatch || sha256Match || bcryptMatch;
     if (!valid) {
       return res.status(401).json({ message: "Invalid credentials" });
