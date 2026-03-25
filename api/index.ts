@@ -3,7 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 const { Pool } = pg;
-import { eq, desc, inArray, sql } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import {
   pgTable, pgEnum, text, integer, serial,
   boolean, timestamp, uniqueIndex
@@ -151,17 +151,20 @@ app.use(express.urlencoded({ extended: false }));
       const admin123Hash = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9";
       const shop123Hash = "1f5d9134b47329e61aaf3c2a5a2af8a95d712a6c01ab07b7dc5d2625c8713b54";
       
-      // Upsert admin user
-      await db.execute(sql`
-        INSERT INTO users (username, password_hash, role)
-        VALUES ('admin', ${admin123Hash}, 'admin')
-        ON CONFLICT (username) DO UPDATE SET password_hash = ${admin123Hash}
-      `);
-      await db.execute(sql`
-        INSERT INTO users (username, password_hash, role, shop_id)
-        VALUES ('shop1', ${shop123Hash}, 'shop_admin', 1)
-        ON CONFLICT (username) DO UPDATE SET password_hash = ${shop123Hash}
-      `);
+      // Upsert admin user using drizzle query builder
+      const existingAdmin = await db.select().from(users).where(eq(users.username, 'admin'));
+      if (existingAdmin.length > 0) {
+        await db.update(users).set({ passwordHash: admin123Hash }).where(eq(users.username, 'admin'));
+      } else {
+        await db.insert(users).values({ username: 'admin', passwordHash: admin123Hash, role: 'admin' });
+      }
+      
+      const existingShop1 = await db.select().from(users).where(eq(users.username, 'shop1'));
+      if (existingShop1.length > 0) {
+        await db.update(users).set({ passwordHash: shop123Hash }).where(eq(users.username, 'shop1'));
+      } else {
+        await db.insert(users).values({ username: 'shop1', passwordHash: shop123Hash, role: 'shop_admin', shopId: 1 });
+      }
       const allUsers = await db.select().from(users);
       res.json({ success: true, users: allUsers.map(u => ({ id: u.id, username: u.username, role: u.role })) });
     } catch (error: any) {
