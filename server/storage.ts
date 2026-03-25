@@ -266,7 +266,7 @@ export class DatabaseStorage implements IStorage {
 
   async getReservationByCancelToken(token: string): Promise<Reservation | undefined> {
     const [reservation] = await db.select().from(reservations)
-      .where(eq(reservations.cancelToken, token));
+      .where(eq(reservations.reservationToken, token));
     return reservation;
   }
 
