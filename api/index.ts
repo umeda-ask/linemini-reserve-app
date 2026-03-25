@@ -11,8 +11,18 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import crypto from "crypto";
+import Stripe from "stripe";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-change-in-production";
+
+// Stripe クライアント
+function getStripeClient(): Stripe {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("STRIPE_SECRET_KEY is not set");
+  }
+  return new Stripe(secretKey, { apiVersion: "2024-12-18.acacia" as any });
+}
 
 // シンプルなSHA256ハッシュ関数
 function hashPassword(password: string): string {
@@ -374,6 +384,132 @@ app.delete("/api/coupons/:id", async (req, res) => {
   } catch (error) {
     console.error("Error deleting coupon:", error);
     res.status(500).json({ message: "Failed to delete coupon" });
+  }
+});
+
+// ─────────────────────────────
+// Stripe Connect
+// ─────────────────────────────
+app.get("/api/stripe/config", async (_req, res) => {
+  try {
+    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+    if (!publishableKey) {
+      return res.status(500).json({ error: "STRIPE_PUBLISHABLE_KEY is not set" });
+    }
+    res.json({ publishableKey });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/stripe/connect/onboard/:shopId", async (req, res) => {
+  try {
+    const shopId = parseInt(req.params.shopId);
+    const [shop] = await db.select().from(shops).where(eq(shops.id, shopId));
+    if (!shop) return res.status(404).json({ error: "Shop not found" });
+
+    const stripe = getStripeClient();
+    const origin = `${req.protocol}://${req.get("host")}`;
+
+    let accountId = shop.stripeConnectId;
+
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: "express",
+        country: "JP",
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { name: shop.name },
+        metadata: { shopId: String(shopId) },
+      });
+      accountId = account.id;
+      await db.update(shops)
+        .set({ stripeConnectId: accountId, stripeConnectStatus: "pending" })
+        .where(eq(shops.id, shopId));
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${origin}/admin`,
+      return_url: `${origin}/admin?stripe_connect=success&shopId=${shopId}`,
+      type: "account_onboarding",
+    });
+
+    res.json({ url: accountLink.url });
+  } catch (e: any) {
+    console.error("Stripe Connect onboard error:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/stripe/connect/status/:shopId", async (req, res) => {
+  try {
+    const shopId = parseInt(req.params.shopId);
+    const [shop] = await db.select().from(shops).where(eq(shops.id, shopId));
+    if (!shop) return res.status(404).json({ error: "Shop not found" });
+
+    if (!shop.stripeConnectId) {
+      return res.json({ status: "none", connected: false });
+    }
+
+    const stripe = getStripeClient();
+    const account = await stripe.accounts.retrieve(shop.stripeConnectId);
+    const connected = account.details_submitted && account.charges_enabled;
+    const status = connected ? "active" : "pending";
+
+    if (shop.stripeConnectStatus !== status) {
+      await db.update(shops)
+        .set({ stripeConnectStatus: status })
+        .where(eq(shops.id, shopId));
+    }
+
+    res.json({
+      status,
+      connected,
+      accountId: shop.stripeConnectId,
+      chargesEnabled: account.charges_enabled,
+      detailsSubmitted: account.details_submitted,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/stripe/connect/dashboard/:shopId", async (req, res) => {
+  try {
+    const shopId = parseInt(req.params.shopId);
+    const [shop] = await db.select().from(shops).where(eq(shops.id, shopId));
+    if (!shop?.stripeConnectId) return res.status(404).json({ error: "Not connected" });
+
+    const stripe = getStripeClient();
+    const loginLink = await stripe.accounts.createLoginLink(shop.stripeConnectId);
+    res.json({ url: loginLink.url });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/stripe/connect/payment-intent", async (req, res) => {
+  try {
+    const { shopId, amount, currency = "jpy", description } = req.body;
+    const [shop] = await db.select().from(shops).where(eq(shops.id, parseInt(shopId)));
+    if (!shop?.stripeConnectId) {
+      return res.status(400).json({ error: "Shop not connected to Stripe" });
+    }
+
+    const stripe = getStripeClient();
+    const platformFee = Math.floor(amount * 0.05);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency,
+      description,
+      application_fee_amount: platformFee,
+      transfer_data: { destination: shop.stripeConnectId },
+    });
+
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 
