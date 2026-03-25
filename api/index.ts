@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import express, { type Request, Response, NextFunction } from "express";
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
-import { eq, desc, inArray, sql } from "drizzle-orm";
+import pg from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+const { Pool } = pg;
+import { eq, desc, inArray } from "drizzle-orm";
 import {
   pgTable, pgEnum, text, integer, serial,
   boolean, timestamp, uniqueIndex
@@ -26,7 +27,6 @@ function verifyPassword(password: string, hash: string): boolean {
 // ─────────────────────────────
 // DB接続
 // ─────────────────────────────
-const sql = neon(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL!);
 
 // ─────────────────────────────
 // スキーマ定義（インライン）
@@ -117,9 +117,14 @@ const shopCategories = pgTable("shop_categories", {
 const insertShopSchema = createInsertSchema(shops).omit({ id: true });
 const insertCouponSchema = createInsertSchema(coupons).omit({ id: true });
 
-const db = drizzle(sql, { 
-  schema: { users, areas, categories, shops, coupons, shopCategories } 
-});
+const pool = new Pool({
+    connectionString: process.env.POSTGRES_URL_NON_POOLING || process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL,
+    max: 1,
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 5000,
+  });
+
+  const db = drizzle({ client: pool, schema: { users, areas, categories, shops, coupons, shopCategories } });
 
 // ─────────────────────────────
 // Express設定
@@ -134,8 +139,8 @@ app.use(express.urlencoded({ extended: false }));
   // ─────────────────────────────
   app.get("/api/diag", async (_req: any, res: any) => {
     try {
-      const result = await db.execute(sql`SELECT 1 as test`);
-      res.json({ status: "ok", db: result?.rows?.[0] || "connected", env: { hasDbUrl: !!process.env.DATABASE_URL, hasDbUrlUnpooled: !!process.env.DATABASE_URL_UNPOOLED } });
+      const result = await db.select().from(users).limit(1);
+      res.json({ status: "ok", userCount: result.length, env: { hasDbUrl: !!process.env.DATABASE_URL, hasNonPooling: !!process.env.POSTGRES_URL_NON_POOLING, hasUnpooled: !!process.env.DATABASE_URL_UNPOOLED } });
     } catch (error: any) {
       res.status(500).json({ status: "error", message: error?.message, stack: error?.stack?.substring(0, 500) });
     }
