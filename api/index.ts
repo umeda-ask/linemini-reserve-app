@@ -431,13 +431,81 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
     if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
     try {
       const date = req.query.date as string;
-      const slots: string[] = [];
-      for (let h = 10; h <= 18; h++) { slots.push(`${String(h).padStart(2,"0")}:00`); if (h<18) slots.push(`${String(h).padStart(2,"0")}:30`); }
-      if (!date) return res.json(slots.map(t=>({time:t,available:true})));
-      const booked = await sql`SELECT time FROM booking_reservations WHERE shop_id=${shopId} AND date=${date} AND status!='cancelled'`;
-      const bookedSet = new Set(booked.map((r: any)=>r.time));
-      res.json(slots.map(t=>({time:t,available:!bookedSet.has(t)})));
-    } catch (e: any) { res.status(500).json({ message: "Failed to fetch slots" }); }
+      const courseId = req.query.courseId as string | undefined;
+
+      // 10:00〜19:00、30分刻みのスロット一覧
+      const allSlots: string[] = [];
+      for (let h = 10; h <= 19; h++) {
+        allSlots.push(`${String(h).padStart(2,"0")}:00`);
+        if (h < 19) allSlots.push(`${String(h).padStart(2,"0")}:30`);
+      }
+
+      if (!date) return res.json(allSlots.map(t => ({ time: t, available: true })));
+
+      // booking_settings から卓数を取得
+      const settingsRows = await sql`SELECT table_count FROM booking_settings WHERE shop_id=${shopId}`;
+      const tableCount = Math.max(parseInt(settingsRows[0]?.table_count || "1", 10) || 1, 1);
+
+      // リクエストされたコースの所要時間を取得
+      let courseDuration = 30;
+      if (courseId) {
+        const courseRows = await sql`SELECT duration FROM booking_courses WHERE id=${courseId} AND shop_id=${shopId}`;
+        if (courseRows[0]) courseDuration = parseInt(courseRows[0].duration, 10) || 30;
+      }
+      const slotsNeeded = Math.ceil(courseDuration / 30);
+
+      // 当日の全予約（キャンセル除く）とコース所要時間を取得
+      const reservations = await sql`
+        SELECT r.time, COALESCE(c.duration, 30) AS duration
+        FROM booking_reservations r
+        LEFT JOIN booking_courses c ON c.id::text = r.course_id AND c.shop_id = r.shop_id
+        WHERE r.shop_id=${shopId} AND r.date=${date} AND r.status != 'cancelled'
+      `;
+
+      // 各30分スロットに何件の予約が重なるかをカウント
+      const slotCount = new Map<string, number>();
+      for (const r of reservations as any[]) {
+        const [rh, rm] = (r.time as string).split(":").map(Number);
+        const rStartMin = rh * 60 + rm;
+        const rDuration = parseInt(r.duration, 10) || 30;
+        const rEndMin = rStartMin + rDuration;
+
+        for (const slot of allSlots) {
+          const [sh, sm] = slot.split(":").map(Number);
+          const sStartMin = sh * 60 + sm;
+          // 予約がこの30分スロットに重なるか
+          if (rStartMin < sStartMin + 30 && rEndMin > sStartMin) {
+            slotCount.set(slot, (slotCount.get(slot) || 0) + 1);
+          }
+        }
+      }
+
+      // 各スロットの空き判定（コース所要時間分の連続スロットをチェック）
+      const result = allSlots.map(slot => {
+        const [sh, sm] = slot.split(":").map(Number);
+        const sStartMin = sh * 60 + sm;
+
+        // 営業時間内に収まるか（19:00までに終了）
+        if (sStartMin + courseDuration > 19 * 60) {
+          return { time: slot, available: false };
+        }
+
+        // コースが占有する全30分スロットの最大予約数を求める
+        let maxConcurrent = 0;
+        for (let i = 0; i < slotsNeeded; i++) {
+          const checkMin = sStartMin + i * 30;
+          const checkSlot = `${String(Math.floor(checkMin/60)).padStart(2,"0")}:${String(checkMin%60).padStart(2,"0")}`;
+          maxConcurrent = Math.max(maxConcurrent, slotCount.get(checkSlot) || 0);
+        }
+
+        return { time: slot, available: maxConcurrent < tableCount };
+      });
+
+      res.json(result);
+    } catch (e: any) {
+      console.error("slots error:", e);
+      res.status(500).json({ message: "Failed to fetch slots" });
+    }
   });
 
   app.put("/api/shops/:shopId/slots", async (_req, res) => res.json({ ok: true }));
