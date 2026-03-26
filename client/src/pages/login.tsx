@@ -38,8 +38,9 @@ export default function LoginPage() {
                 <Input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="username"
+                  placeholder="例: admin"
                   className="pl-9"
+                  name="username"
                   autoComplete="username"
                   data-testid="input-username"
                   disabled={login.isPending}
@@ -59,6 +60,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="pl-9"
+                  name="password"
                   autoComplete="current-password"
                   data-testid="input-password"
                   disabled={login.isPending}
