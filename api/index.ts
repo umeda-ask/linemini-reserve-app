@@ -43,8 +43,12 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
         store_phone TEXT DEFAULT '', store_email TEXT DEFAULT '',
         store_hours TEXT DEFAULT '', store_closed_days TEXT DEFAULT '',
         banner_url TEXT DEFAULT '', staff_selection_enabled TEXT DEFAULT 'false',
+        table_count INTEGER DEFAULT 0, max_party_size INTEGER DEFAULT 0,
         updated_at TIMESTAMP DEFAULT NOW()
       )`;
+      // 既存テーブルへのカラム追加（冪等）
+      await sql`ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS table_count INTEGER DEFAULT 0`;
+      await sql`ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS max_party_size INTEGER DEFAULT 0`;
       tablesInitialized = true;
     } catch (e) {
       console.error("initBookingTables error:", e);
@@ -448,7 +452,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
       const rows = await sql`SELECT * FROM booking_settings WHERE shop_id=${shopId}`;
       if (rows[0]) {
         const s = rows[0];
-        return res.json({ store_name: s.store_name||"", store_description: s.store_description||"", store_address: s.store_address||"", store_phone: s.store_phone||"", store_email: s.store_email||"", store_hours: s.store_hours||"", store_closed_days: s.store_closed_days||"", banner_url: s.banner_url||"", staff_selection_enabled: s.staff_selection_enabled||"false" });
+        return res.json({ store_name: s.store_name||"", store_description: s.store_description||"", store_address: s.store_address||"", store_phone: s.store_phone||"", store_email: s.store_email||"", store_hours: s.store_hours||"", store_closed_days: s.store_closed_days||"", banner_url: s.banner_url||"", staff_selection_enabled: s.staff_selection_enabled||"false", table_count: s.table_count != null ? String(s.table_count) : "0", max_party_size: s.max_party_size != null ? String(s.max_party_size) : "0" });
       }
       const shopRows = await sql`SELECT * FROM shops WHERE id=${shopId}`;
       if (!shopRows[0]) return res.status(404).json({ message: "Shop not found" });
@@ -462,9 +466,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
     if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
     try {
       const s = req.body;
-      await sql`INSERT INTO booking_settings (shop_id, store_name, store_description, store_address, store_phone, store_email, store_hours, store_closed_days, banner_url, staff_selection_enabled, updated_at)
-        VALUES (${shopId}, ${s.store_name||''}, ${s.store_description||''}, ${s.store_address||''}, ${s.store_phone||''}, ${s.store_email||''}, ${s.store_hours||''}, ${s.store_closed_days||''}, ${s.banner_url||''}, ${s.staff_selection_enabled||'false'}, NOW())
-        ON CONFLICT (shop_id) DO UPDATE SET store_name=${s.store_name||''}, store_description=${s.store_description||''}, store_address=${s.store_address||''}, store_phone=${s.store_phone||''}, store_email=${s.store_email||''}, store_hours=${s.store_hours||''}, store_closed_days=${s.store_closed_days||''}, banner_url=${s.banner_url||''}, staff_selection_enabled=${s.staff_selection_enabled||'false'}, updated_at=NOW()`;
+      const tableCount = parseInt(s.table_count||'0', 10) || 0;
+      const maxPartySize = parseInt(s.max_party_size||'0', 10) || 0;
+      await sql`INSERT INTO booking_settings (shop_id, store_name, store_description, store_address, store_phone, store_email, store_hours, store_closed_days, banner_url, staff_selection_enabled, table_count, max_party_size, updated_at)
+        VALUES (${shopId}, ${s.store_name||''}, ${s.store_description||''}, ${s.store_address||''}, ${s.store_phone||''}, ${s.store_email||''}, ${s.store_hours||''}, ${s.store_closed_days||''}, ${s.banner_url||''}, ${s.staff_selection_enabled||'false'}, ${tableCount}, ${maxPartySize}, NOW())
+        ON CONFLICT (shop_id) DO UPDATE SET store_name=${s.store_name||''}, store_description=${s.store_description||''}, store_address=${s.store_address||''}, store_phone=${s.store_phone||''}, store_email=${s.store_email||''}, store_hours=${s.store_hours||''}, store_closed_days=${s.store_closed_days||''}, banner_url=${s.banner_url||''}, staff_selection_enabled=${s.staff_selection_enabled||'false'}, table_count=${tableCount}, max_party_size=${maxPartySize}, updated_at=NOW()`;
       res.json(s);
     } catch (e: any) { res.status(500).json({ message: "Failed to update settings" }); }
   });
