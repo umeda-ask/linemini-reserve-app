@@ -920,22 +920,49 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
   // Stripe Connect接続状態確認
   app.get("/api/stripe/connect/status/:shopId", async (req, res) => {
-    try {
-      const shopId = parseInt(req.params.shopId);
-      const rows = await sql`SELECT id, name, stripe_connect_id, stripe_connect_status FROM shops WHERE id = ${shopId}`;
-      if (!rows.length) return res.status(404).json({ error: "Shop not found" });
-      const shop = rows[0];
-      res.json({
-        shopId,
-        accountId: shop.stripe_connect_id,
-        status: shop.stripe_connect_status,
-      });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+      try {
+        const shopId = parseInt(req.params.shopId);
+        const rows = await sql`SELECT id, name, stripe_connect_id, stripe_connect_status FROM shops WHERE id = ${shopId}`;
+        if (!rows.length) return res.status(404).json({ error: "Shop not found" });
+        const shop = rows[0];
 
-  // 事前決済用PaymentIntent作成
+        if (!shop.stripe_connect_id) {
+          return res.json({ shopId, accountId: null, status: "none", connected: false });
+        }
+
+        // Stripe APIでリアルタイム状態確認
+        try {
+          const stripe = await getStripeClient();
+          const account = await stripe.accounts.retrieve(shop.stripe_connect_id);
+          const transfersOk = account.capabilities?.transfers === 'active';
+          const cardOk = account.capabilities?.card_payments === 'active';
+          const newStatus = (transfersOk && cardOk) ? 'active' : 'pending';
+          if (newStatus !== shop.stripe_connect_status) {
+            await sql`UPDATE shops SET stripe_connect_status = ${newStatus} WHERE id = ${shopId}`;
+          }
+          return res.json({
+            shopId,
+            accountId: shop.stripe_connect_id,
+            status: newStatus,
+            connected: newStatus === 'active',
+            chargesEnabled: account.charges_enabled,
+            payoutsEnabled: account.payouts_enabled,
+            detailsSubmitted: account.details_submitted,
+          });
+        } catch (stripeErr: any) {
+          return res.json({
+            shopId,
+            accountId: shop.stripe_connect_id,
+            status: shop.stripe_connect_status || 'pending',
+            connected: shop.stripe_connect_status === 'active',
+          });
+        }
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // 事前決済用PaymentIntent作成
   app.post("/api/stripe/connect/payment-intent", async (req, res) => {
     try {
       const { shopId, amount, courseId, courseName } = req.body;
