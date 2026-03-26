@@ -433,8 +433,7 @@ export async function registerRoutes(
 
   app.put("/api/shops/:shopId/settings", (req, res) => {
     const shopId = parseInt(req.params.shopId);
-    const store = bookingManager.getStore(shopId);
-    if (!store) return res.status(404).json({ message: "Shop not found" });
+    const store = bookingManager.getOrCreateStore(shopId);
     store.settings = { ...store.settings, ...req.body };
     res.json(store.settings);
   });

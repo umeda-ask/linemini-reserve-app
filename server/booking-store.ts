@@ -488,6 +488,29 @@ class BookingStoreManager {
     return this.stores.get(shopId);
   }
 
+  getOrCreateStore(shopId: number): BookingStore {
+    if (!this.stores.has(shopId)) {
+      const data = SHOP_BOOKING_DATA[shopId] ?? {
+        staff: [],
+        courses: [],
+        reservations: [],
+        settings: {
+          store_name: "",
+          store_description: "",
+          store_address: "",
+          store_phone: "",
+          store_email: "",
+          store_hours: "",
+          store_closed_days: "",
+          banner_url: "",
+          staff_selection_enabled: "false",
+        },
+      };
+      this.stores.set(shopId, new BookingStore(data));
+    }
+    return this.stores.get(shopId)!;
+  }
+
   getShopIdsWithBooking(): number[] {
     return Object.keys(SHOP_BOOKING_DATA).map(Number);
   }
