@@ -8,12 +8,15 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface CourseSelectProps {
   shopId: number;
+  stripeConnectId?: string | null;
+  stripeConnectStatus?: string | null;
   onSelect: (course: Course) => void;
 }
 
 type Tab = "courses" | "store-info";
 
-export function CourseSelect({ shopId, onSelect }: CourseSelectProps) {
+export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onSelect }: CourseSelectProps) {
+  const stripeActive = !!(stripeConnectId && stripeConnectStatus === "active");
   const [activeTab, setActiveTab] = useState<Tab>("courses");
   const [courses, setCourses] = useState<Course[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
@@ -100,45 +103,68 @@ export function CourseSelect({ shopId, onSelect }: CourseSelectProps) {
 
       {activeTab === "courses" && (
         <>
+          {!stripeActive && courses.some((c) => c.prepaymentOnly) && (
+            <div className="mx-4 mt-3 mb-1 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <p className="text-xs text-amber-800 leading-relaxed">
+                「事前決済」マークのコースはオンライン決済の設定が完了していないため、現在ご予約いただけません。
+              </p>
+            </div>
+          )}
           {categories.map((category) => (
             <div key={category} className="flex flex-col">
               <div className="bg-muted px-4 py-2.5">
                 <h2 className="text-sm font-bold text-foreground">{category}</h2>
               </div>
               <div className="flex flex-col divide-y divide-border">
-                {courses.filter((c) => c.category === category).map((course) => (
-                  <button
-                    key={course.id}
-                    onClick={() => onSelect(course)}
-                    className="flex items-start gap-3 bg-card px-4 py-4 text-left transition-colors hover:bg-muted/50 active:bg-muted"
-                    data-testid={`course-item-${course.id}`}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-bold text-foreground">{course.name}</h3>
-                        {course.prepaymentOnly && (
-                          <Badge variant="secondary" className="gap-1 bg-primary/10 text-primary text-[10px] px-1.5 py-0">
-                            <CreditCard className="h-2.5 w-2.5" />
-                            事前決済
-                          </Badge>
-                        )}
+                {courses.filter((c) => c.category === category).map((course) => {
+                  const disabled = course.prepaymentOnly && !stripeActive;
+                  return (
+                    <button
+                      key={course.id}
+                      onClick={() => !disabled && onSelect(course)}
+                      disabled={disabled}
+                      className={`flex items-start gap-3 px-4 py-4 text-left transition-colors ${
+                        disabled
+                          ? "bg-muted/30 opacity-50 cursor-not-allowed"
+                          : "bg-card hover:bg-muted/50 active:bg-muted"
+                      }`}
+                      data-testid={`course-item-${course.id}`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-foreground">{course.name}</h3>
+                          {course.prepaymentOnly && (
+                            <Badge
+                              variant="secondary"
+                              className={`gap-1 text-[10px] px-1.5 py-0 ${
+                                stripeActive
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              <CreditCard className="h-2.5 w-2.5" />
+                              事前決済
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2">
+                          {course.description}
+                        </p>
+                        <div className="mt-2 flex items-center gap-3">
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            {formatDuration(course.duration)}
+                          </span>
+                          <span className="text-base font-bold text-primary">
+                            {formatPrice(course.price)}
+                          </span>
+                        </div>
                       </div>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                        {course.description}
-                      </p>
-                      <div className="mt-2 flex items-center gap-3">
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(course.duration)}
-                        </span>
-                        <span className="text-base font-bold text-primary">
-                          {formatPrice(course.price)}
-                        </span>
-                      </div>
-                    </div>
-                    <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                  </button>
-                ))}
+                      <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}

@@ -148,6 +148,8 @@ export default function ReservationPage() {
         {step === "course" && (
           <CourseSelect
             shopId={shopId}
+            stripeConnectId={shop.stripeConnectId}
+            stripeConnectStatus={shop.stripeConnectStatus}
             onSelect={(course) => {
               setSelectedCourse(course);
               setStep("course-detail");
