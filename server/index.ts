@@ -1,6 +1,10 @@
-import { app } from "../api/index";
+import express from "express";
 import { createServer } from "http";
 import type { Request, Response, NextFunction } from "express";
+
+const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 const httpServer = createServer(app);
 
@@ -20,6 +24,9 @@ export function log(message: string, source = "express") {
 
   const { seedDatabase } = await import("./seed");
   await seedDatabase();
+
+  const { registerRoutes } = await import("./routes");
+  await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
