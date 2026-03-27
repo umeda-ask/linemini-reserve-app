@@ -269,9 +269,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const b = req.body;
       const slug = b.slug || crypto.randomUUID().replace(/-/g, "").slice(0, 10);
-      const rows = await sql`INSERT INTO shops (slug, name, description, area_id, area, category, subcategory, address, phone, hours, closed_days, website, display_order, line_account_url, image_url, gallery_image_urls, is_active, enable_staff_assignment, reservation_url, reservation_image_url, like_count)
-        VALUES (${slug}, ${b.name||""}, ${b.description||""}, ${b.areaId||1}, ${b.area||""}, ${b.category||""}, ${b.subcategory||null}, ${b.address||""}, ${b.phone||null}, ${b.hours||null}, ${b.closedDays||null}, ${b.website||null}, ${b.displayOrder||0}, ${b.lineAccountUrl||null}, ${b.imageUrl||""}, ${b.galleryImageUrls||[]}, ${b.isActive!==false}, ${b.enableStaffAssignment||false}, ${b.reservationUrl||null}, ${b.reservationImageUrl||null}, ${b.likeCount||0})
-        RETURNING *`;
+      await sql`INSERT INTO shops (slug, name, description, area_id, area, category, subcategory, address, phone, hours, closed_days, website, display_order, line_account_url, image_url, gallery_image_urls, is_active, enable_staff_assignment, reservation_url, reservation_image_url, like_count)
+        VALUES (${slug}, ${b.name||""}, ${b.description||""}, ${b.areaId||1}, ${b.area||""}, ${b.category||""}, ${b.subcategory||null}, ${b.address||""}, ${b.phone||null}, ${b.hours||null}, ${b.closedDays||null}, ${b.website||null}, ${b.displayOrder||0}, ${b.lineAccountUrl||null}, ${b.imageUrl||""}, ${b.galleryImageUrls||[]}, ${b.isActive!==false}, ${b.enableStaffAssignment||false}, ${b.reservationUrl||null}, ${b.reservationImageUrl||null}, ${b.likeCount||0})`;
+      const rows = await sql`SELECT * FROM shops WHERE slug = ${slug}`;
+      if (!rows[0]) return res.status(500).json({ message: "Failed to create shop" });
       res.status(201).json(toShop(rows[0]));
     } catch (e: any) { console.error("shop create error:", e); res.status(500).json({ message: "Failed to create shop" }); }
   });
@@ -312,7 +313,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/shops/:id/like", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const rows = await sql`UPDATE shops SET like_count = like_count + 1 WHERE id = ${id} RETURNING like_count`;
+      await sql`UPDATE shops SET like_count = like_count + 1 WHERE id = ${id}`;
+      const rows = await sql`SELECT like_count FROM shops WHERE id = ${id}`;
       res.json({ likeCount: rows[0]?.like_count });
     } catch (e: any) { res.status(500).json({ message: "Failed to like shop" }); }
   });
@@ -332,8 +334,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const shopId = parseInt(req.params.id);
       if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
       const b = req.body;
-      const rows = await sql`INSERT INTO coupons (shop_id, title, description, discount, discount_type, discount_value, expiry_date, is_first_time_only, is_line_account_coupon, is_active)
-        VALUES (${shopId}, ${b.title||""}, ${b.description||null}, ${b.discount||null}, ${b.discountType||"FREE"}, ${b.discountValue||0}, ${b.expiryDate||null}, ${b.isFirstTimeOnly||false}, ${b.isLineAccountCoupon||false}, ${b.isActive!==false}) RETURNING *`;
+      await sql`INSERT INTO coupons (shop_id, title, description, discount, discount_type, discount_value, expiry_date, is_first_time_only, is_line_account_coupon, is_active)
+        VALUES (${shopId}, ${b.title||""}, ${b.description||null}, ${b.discount||null}, ${b.discountType||"FREE"}, ${b.discountValue||0}, ${b.expiryDate||null}, ${b.isFirstTimeOnly||false}, ${b.isLineAccountCoupon||false}, ${b.isActive!==false})`;
+      const maxRow = await sql`SELECT MAX(id) as id FROM coupons WHERE shop_id = ${shopId}`;
+      const newId = maxRow[0]?.id;
+      if (newId == null) return res.status(500).json({ message: "Failed to create coupon" });
+      const rows = await sql`SELECT * FROM coupons WHERE id = ${newId}`;
       res.status(201).json(toCoupon(rows[0]));
     } catch (e: any) { console.error(e); res.status(500).json({ message: "Failed to create coupon" }); }
   });
@@ -368,8 +374,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid coupon ID" });
-      const rows = await sql`DELETE FROM coupons WHERE id = ${id} RETURNING id`;
-      if (!rows[0]) return res.status(404).json({ message: "Coupon not found" });
+      const cnt = await sql`SELECT COUNT(*) as cnt FROM coupons WHERE id = ${id}`;
+      if (parseInt(cnt[0]?.cnt || "0") === 0) return res.status(404).json({ message: "Coupon not found" });
+      await sql`DELETE FROM coupons WHERE id = ${id}`;
       res.json({ message: "Coupon deleted" });
     } catch (e: any) { res.status(500).json({ message: "Failed to delete coupon" }); }
   });
@@ -426,9 +433,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
     try {
       const { name, role, avatar } = req.body;
-      const rows = await sql`INSERT INTO booking_staff (shop_id, name, role, avatar) VALUES (${shopId}, ${name||""}, ${role||""}, ${avatar||""}) RETURNING *`;
-      const s = rows[0];
-      res.status(201).json({ id: s.id.toString(), name: s.name, role: s.role, avatar: s.avatar, courseIds: [] });
+      await sql`INSERT INTO booking_staff (shop_id, name, role, avatar) VALUES (${shopId}, ${name||""}, ${role||""}, ${avatar||""})`;
+      const maxRow = await sql`SELECT MAX(id) as id FROM booking_staff WHERE shop_id = ${shopId}`;
+      const newId = maxRow[0]?.id;
+      if (newId == null) return res.status(500).json({ message: "Failed to create staff" });
+      res.status(201).json({ id: String(newId), name: name||"", role: role||"", avatar: avatar||"", courseIds: [] });
     } catch (e: any) { res.status(500).json({ message: "Failed to create staff" }); }
   });
 
@@ -467,8 +476,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
     try {
       const { name, category, duration, price, description, prepaymentOnly, imageUrl, staffIds } = req.body;
-      const rows = await sql`INSERT INTO booking_courses (shop_id, name, category, duration, price, description, prepayment_only, image_url, staff_ids)
-        VALUES (${shopId}, ${name||""}, ${category||""}, ${duration||60}, ${price||0}, ${description||""}, ${prepaymentOnly||false}, ${imageUrl||null}, ${staffIds||[]}) RETURNING *`;
+      await sql`INSERT INTO booking_courses (shop_id, name, category, duration, price, description, prepayment_only, image_url, staff_ids)
+        VALUES (${shopId}, ${name||""}, ${category||""}, ${duration||60}, ${price||0}, ${description||""}, ${prepaymentOnly||false}, ${imageUrl||null}, ${staffIds||[]})`;
+      const maxRow = await sql`SELECT MAX(id) as id FROM booking_courses WHERE shop_id = ${shopId}`;
+      const newId = maxRow[0]?.id;
+      if (newId == null) return res.status(500).json({ message: "Failed to create course" });
+      const rows = await sql`SELECT * FROM booking_courses WHERE id = ${newId}`;
       res.status(201).json(toCourse(rows[0]));
     } catch (e: any) { res.status(500).json({ message: "Failed to create course" }); }
   });
@@ -478,9 +491,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
     try {
       const { id, name, category, duration, price, description, prepaymentOnly, imageUrl, staffIds } = req.body;
-      const rows = await sql`UPDATE booking_courses SET name=${name||""}, category=${category||""}, duration=${duration||60}, price=${price||0}, description=${description||""}, prepayment_only=${prepaymentOnly||false}, image_url=${imageUrl||null}, staff_ids=${staffIds||[]}, updated_at=NOW()
-        WHERE id=${parseInt(id)} AND shop_id=${shopId} RETURNING *`;
-      if (!rows[0]) return res.status(404).json({ message: "Course not found" });
+      const courseId = parseInt(id);
+      const cnt = await sql`SELECT COUNT(*) as cnt FROM booking_courses WHERE id = ${courseId} AND shop_id = ${shopId}`;
+      if (parseInt(cnt[0]?.cnt || "0") === 0) return res.status(404).json({ message: "Course not found" });
+      await sql`UPDATE booking_courses SET name=${name||""}, category=${category||""}, duration=${duration||60}, price=${price||0}, description=${description||""}, prepayment_only=${prepaymentOnly||false}, image_url=${imageUrl||null}, staff_ids=${staffIds||[]}, updated_at=NOW()
+        WHERE id=${courseId} AND shop_id=${shopId}`;
+      const rows = await sql`SELECT * FROM booking_courses WHERE id = ${courseId} AND shop_id = ${shopId}`;
       res.json(toCourse(rows[0]));
     } catch (e: any) { res.status(500).json({ message: "Failed to update course" }); }
   });
@@ -614,8 +630,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { customerName, customerPhone, customerEmail, date, time, staffId, courseId } = req.body;
       if (!customerName || !date || !time || !courseId) return res.status(400).json({ message: "Missing required fields" });
       const token = crypto.randomUUID().replace(/-/g, "");
-      const rows = await sql`INSERT INTO booking_reservations (shop_id, customer_name, customer_phone, customer_email, date, time, staff_id, course_id, status, paid, cancel_token)
-        VALUES (${shopId}, ${customerName}, ${customerPhone||null}, ${customerEmail||null}, ${date}, ${time}, ${staffId||"__shop__"}, ${courseId.toString()}, 'confirmed', false, ${token}) RETURNING *`;
+      // INSERT RETURNING がNeonで空配列を返すバグのためRETURNINGなしでINSERT → cancel_tokenでSELECT
+      await sql`INSERT INTO booking_reservations (shop_id, customer_name, customer_phone, customer_email, date, time, staff_id, course_id, status, paid, cancel_token)
+        VALUES (${shopId}, ${customerName}, ${customerPhone||null}, ${customerEmail||null}, ${date}, ${time}, ${staffId||"__shop__"}, ${courseId.toString()}, 'confirmed', false, ${token})`;
+      const rows = await sql`SELECT * FROM booking_reservations WHERE cancel_token = ${token}`;
+      if (!rows[0]) return res.status(500).json({ message: "Failed to create reservation" });
       res.status(201).json(toReservation(rows[0]));
     } catch (e: any) { console.error("reservation error:", e); res.status(500).json({ message: "Failed to create reservation" }); }
   });
@@ -816,8 +835,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         await sql`DELETE FROM booking_reservations WHERE shop_id = ${shopId}`;
         await sql`DELETE FROM coupons WHERE shop_id = ${shopId}`;
       } else {
-        const shopRows = await sql`INSERT INTO shops (slug, name, description, area_id, area, category, subcategory, address, phone, hours, closed_days, website, display_order, line_account_url, image_url, gallery_image_urls, is_active, enable_staff_assignment, like_count)
-          VALUES ('test-salon-hanagokoro', '総合サロン はなごころ', '小田原駅徒歩5分。ヘア・エステ・ネイル・リラクゼーションを一か所で。完全予約制の上質な空間。', 1, '小田原', '美容', 'トータルビューティー', '神奈川県小田原市南町2-3-15 はなごころビル2F', '0465-33-8899', '10:00〜20:00（最終受付 19:00）', '毎週火曜日・第1月曜日', 'https://salon-hanagokoro.jp', 99, 'https://line.me/R/ti/p/@salon-hanagokoro', 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80', ARRAY['https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80','https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=800&q=80','https://images.unsplash.com/photo-1573461160327-a85cf5a11ad5?w=800&q=80'], true, true, 56) RETURNING id`;
+        await sql`INSERT INTO shops (slug, name, description, area_id, area, category, subcategory, address, phone, hours, closed_days, website, display_order, line_account_url, image_url, gallery_image_urls, is_active, enable_staff_assignment, like_count)
+          VALUES ('test-salon-hanagokoro', '総合サロン はなごころ', '小田原駅徒歩5分。ヘア・エステ・ネイル・リラクゼーションを一か所で。完全予約制の上質な空間。', 1, '小田原', '美容', 'トータルビューティー', '神奈川県小田原市南町2-3-15 はなごころビル2F', '0465-33-8899', '10:00〜20:00（最終受付 19:00）', '毎週火曜日・第1月曜日', 'https://salon-hanagokoro.jp', 99, 'https://line.me/R/ti/p/@salon-hanagokoro', 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80', ARRAY['https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80','https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=800&q=80','https://images.unsplash.com/photo-1573461160327-a85cf5a11ad5?w=800&q=80'], true, true, 56)`;
+        const shopRows = await sql`SELECT id FROM shops WHERE slug = 'test-salon-hanagokoro'`;
         shopId = shopRows[0].id;
       }
       await sql`UPDATE shops SET reservation_url = '/app/reservation/' || ${shopId}::text WHERE id = ${shopId}`;
