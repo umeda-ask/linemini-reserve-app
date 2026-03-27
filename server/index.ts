@@ -1,14 +1,6 @@
-import express from "express";
-import { createServer } from "http";
-import type { Request, Response, NextFunction } from "express";
+import { app, httpServer, ensureSetup } from "../api/index";
 
-const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-
-const httpServer = createServer(app);
-
-export function log(message: string, source = "express") {
+function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -19,22 +11,7 @@ export function log(message: string, source = "express") {
 }
 
 (async () => {
-  const { runMigrations } = await import("./migrate");
-  await runMigrations();
-
-  const { seedDatabase } = await import("./seed");
-  await seedDatabase();
-
-  const { registerRoutes } = await import("./routes");
-  await registerRoutes(httpServer, app);
-
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    console.error("Internal Server Error:", err);
-    if (res.headersSent) return next(err);
-    return res.status(status).json({ message });
-  });
+  await ensureSetup();
 
   if (process.env.NODE_ENV === "production") {
     const { serveStatic } = await import("./static");
