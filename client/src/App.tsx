@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import LineAppFrame from "@/components/line-app-frame";
+import { WebAppFrame } from "@/components/web-app-frame";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/landing";
 import HomePage from "@/pages/home";
@@ -19,6 +20,21 @@ import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 
+// ─── ページラッパー（トップレベルで定義してReact Hooks順序を固定） ───
+function AppHome()        { return <LineAppFrame><HomePage /></LineAppFrame>; }
+function AppList()        { return <LineAppFrame><ListPage /></LineAppFrame>; }
+function AppDetail()      { return <LineAppFrame><DetailPage /></LineAppFrame>; }
+function AppReservation() { return <LineAppFrame><ReservationPage /></LineAppFrame>; }
+function AppCancel()      { return <LineAppFrame><CancelPage /></LineAppFrame>; }
+function AppNotFound()    { return <LineAppFrame><NotFound /></LineAppFrame>; }
+
+function WebHome()        { return <WebAppFrame><HomePage /></WebAppFrame>; }
+function WebList()        { return <WebAppFrame><ListPage /></WebAppFrame>; }
+function WebDetail()      { return <WebAppFrame><DetailPage /></WebAppFrame>; }
+function WebReservation() { return <WebAppFrame><ReservationPage /></WebAppFrame>; }
+function WebCancel()      { return <WebAppFrame><CancelPage /></WebAppFrame>; }
+
+// ─── 管理者ルート ───
 function AdminRoute() {
   const { user, isLoading } = useAuth();
   const [, navigate] = useLocation();
@@ -69,43 +85,37 @@ function LoadingScreen() {
   );
 }
 
-const InApp = (C: React.ComponentType) => () => <LineAppFrame><C /></LineAppFrame>;
-
-function WebRedirect({ to }: { to: string }) {
-  const [, navigate] = useLocation();
-  useEffect(() => { navigate(to, { replace: true }); }, []);
-  return null;
-}
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Switch>
+          {/* 共通 */}
           <Route path="/" component={LandingPage} />
           <Route path="/login" component={LoginPage} />
           <Route path="/line" component={LineDemoPage} />
           <Route path="/admin" component={AdminRoute} />
           <Route path="/admin/shop/:id" component={ShopAdminRoute} />
 
-          {/* メインルート（/app/*） */}
-          <Route path="/app" component={InApp(HomePage)} />
-          <Route path="/app/list" component={InApp(ListPage)} />
-          <Route path="/app/shop/:id" component={InApp(DetailPage)} />
-          <Route path="/app/reservation/:id" component={InApp(ReservationPage)} />
-          <Route path="/app/cancel/:shopId/:token" component={InApp(CancelPage)} />
+          {/* LINEミニアプリ (/app/*) */}
+          <Route path="/app" component={AppHome} />
+          <Route path="/app/list" component={AppList} />
+          <Route path="/app/shop/:id" component={AppDetail} />
+          <Route path="/app/reservation/:id" component={AppReservation} />
+          <Route path="/app/cancel/:shopId/:token" component={AppCancel} />
 
-          {/* 旧URLから/app/*へリダイレクト（後方互換） */}
-          <Route path="/web" component={() => <WebRedirect to="/app" />} />
-          <Route path="/web/list" component={() => <WebRedirect to="/app/list" />} />
-          <Route path="/web/shop/:id" component={({ params }: any) => <WebRedirect to={`/app/shop/${params.id}`} />} />
-          <Route path="/web/reservation/:id" component={({ params }: any) => <WebRedirect to={`/app/reservation/${params.id}`} />} />
-          <Route path="/web/cancel/:shopId/:token" component={({ params }: any) => <WebRedirect to={`/app/cancel/${params.shopId}/${params.token}`} />} />
+          {/* WEBサイト (/web/*) */}
+          <Route path="/web" component={WebHome} />
+          <Route path="/web/list" component={WebList} />
+          <Route path="/web/shop/:id" component={WebDetail} />
+          <Route path="/web/reservation/:id" component={WebReservation} />
+          <Route path="/web/cancel/:shopId/:token" component={WebCancel} />
 
-          <Route path="/reservation/:id" component={InApp(ReservationPage)} />
-          <Route path="/cancel/:shopId/:token" component={InApp(CancelPage)} />
-          <Route component={InApp(NotFound)} />
+          {/* その他 */}
+          <Route path="/reservation/:id" component={AppReservation} />
+          <Route path="/cancel/:shopId/:token" component={AppCancel} />
+          <Route component={AppNotFound} />
         </Switch>
       </TooltipProvider>
     </QueryClientProvider>
