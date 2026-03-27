@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import LineAppFrame from "@/components/line-app-frame";
-import { WebAppFrame, WebSpFrame } from "@/components/web-app-frame";
+import { WebAppFrame } from "@/components/web-app-frame";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/landing";
 import HomePage from "@/pages/home";
@@ -50,20 +50,6 @@ function WebRouter() {
   );
 }
 
-function WebSpRouter() {
-  return (
-    <WebSpFrame>
-      <Switch>
-        <Route path="/web-sp" component={HomePage} />
-        <Route path="/web-sp/list" component={ListPage} />
-        <Route path="/web-sp/shop/:id" component={DetailPage} />
-        <Route path="/web-sp/reservation/:id" component={ReservationPage} />
-        <Route path="/web-sp/cancel/:shopId/:token" component={CancelPage} />
-        <Route component={NotFound} />
-      </Switch>
-    </WebSpFrame>
-  );
-}
 
 function AdminRoute() {
   const { user, isLoading } = useAuth();
@@ -130,8 +116,6 @@ function App() {
           <Route path="/cancel/:shopId/:token" component={CancelPage} />
           <Route path="/web/:rest*" component={WebRouter} />
           <Route path="/web" component={WebRouter} />
-          <Route path="/web-sp/:rest*" component={WebSpRouter} />
-          <Route path="/web-sp" component={WebSpRouter} />
           <Route path="/app/:rest*" component={LineAppRouter} />
           <Route component={LineAppRouter} />
         </Switch>

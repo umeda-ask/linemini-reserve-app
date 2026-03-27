@@ -177,6 +177,7 @@ export default function DetailPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const basePath = useBasePath();
+  const isWeb = basePath === "/web";
 
   const { data: shop, isLoading } = useQuery<Shop>({
     queryKey: ["/api/shops", params.id],
@@ -242,8 +243,8 @@ export default function DetailPage() {
     : null;
 
   return (
-    <div className="bg-background">
-      <div className="max-w-3xl mx-auto">
+    <div className={`bg-background ${isWeb ? "max-w-6xl mx-auto" : ""}`}>
+      <div className={isWeb ? "" : "max-w-3xl mx-auto"}>
         <ImageSlider
           images={sliderImages}
           shopName={shop.name}
@@ -275,7 +276,7 @@ export default function DetailPage() {
           </button>
         </div>
 
-        <div className="px-4 md:px-6 py-6 space-y-6">
+        <div className={`py-6 space-y-6 ${isWeb ? "px-6 lg:px-8" : "px-4 md:px-6"}`}>
           {regularCoupons.length > 0 && (
             <Card className="overflow-visible border-2 border-[#06C755]/30 bg-gradient-to-br from-[#06C755]/5 to-card">
               <div className="p-5">
@@ -474,18 +475,20 @@ export default function DetailPage() {
         </div>
       </div>
 
-      <footer className="bg-card border-t py-6 px-4 mt-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <Link href={basePath}>
-            <span className="text-sm font-bold text-primary cursor-pointer" data-testid="link-footer-detail-home">
-              神奈川おでかけナビ
-            </span>
-          </Link>
-          <p className="text-xs text-muted-foreground mt-2">
-            &copy; 2026 神奈川おでかけナビ All Rights Reserved.
-          </p>
-        </div>
-      </footer>
+      {!isWeb && (
+        <footer className="bg-card border-t py-6 px-4 mt-4">
+          <div className="max-w-3xl mx-auto text-center">
+            <Link href={basePath}>
+              <span className="text-sm font-bold text-primary cursor-pointer" data-testid="link-footer-detail-home">
+                神奈川おでかけナビ
+              </span>
+            </Link>
+            <p className="text-xs text-muted-foreground mt-2">
+              &copy; 2026 神奈川おでかけナビ All Rights Reserved.
+            </p>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
