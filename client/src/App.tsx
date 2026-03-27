@@ -20,37 +20,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 
-function LineAppRouter() {
-  return (
-    <LineAppFrame>
-      <Switch>
-        <Route path="/app" component={HomePage} />
-        <Route path="/app/list" component={ListPage} />
-        <Route path="/app/shop/:id" component={DetailPage} />
-        <Route path="/app/reservation/:id" component={ReservationPage} />
-        <Route path="/app/cancel/:shopId/:token" component={CancelPage} />
-        <Route component={NotFound} />
-      </Switch>
-    </LineAppFrame>
-  );
-}
-
-function WebRouter() {
-  return (
-    <WebAppFrame>
-      <Switch>
-        <Route path="/web" component={HomePage} />
-        <Route path="/web/list" component={ListPage} />
-        <Route path="/web/shop/:id" component={DetailPage} />
-        <Route path="/web/reservation/:id" component={ReservationPage} />
-        <Route path="/web/cancel/:shopId/:token" component={CancelPage} />
-        <Route component={NotFound} />
-      </Switch>
-    </WebAppFrame>
-  );
-}
-
-
 function AdminRoute() {
   const { user, isLoading } = useAuth();
   const [, navigate] = useLocation();
@@ -101,23 +70,40 @@ function LoadingScreen() {
   );
 }
 
+const InApp = (C: React.ComponentType) => () => <LineAppFrame><C /></LineAppFrame>;
+const InWeb = (C: React.ComponentType) => () => <WebAppFrame><C /></WebAppFrame>;
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Switch>
+          {/* 共通 */}
           <Route path="/" component={LandingPage} />
           <Route path="/login" component={LoginPage} />
+          <Route path="/line" component={LineDemoPage} />
           <Route path="/admin" component={AdminRoute} />
           <Route path="/admin/shop/:id" component={ShopAdminRoute} />
-          <Route path="/line" component={LineDemoPage} />
-          <Route path="/reservation/:id" component={ReservationPage} />
-          <Route path="/cancel/:shopId/:token" component={CancelPage} />
-          <Route path="/web/:rest*" component={WebRouter} />
-          <Route path="/web" component={WebRouter} />
-          <Route path="/app/:rest*" component={LineAppRouter} />
-          <Route component={LineAppRouter} />
+
+          {/* LINEミニアプリ (/app/*) */}
+          <Route path="/app" component={InApp(HomePage)} />
+          <Route path="/app/list" component={InApp(ListPage)} />
+          <Route path="/app/shop/:id" component={InApp(DetailPage)} />
+          <Route path="/app/reservation/:id" component={InApp(ReservationPage)} />
+          <Route path="/app/cancel/:shopId/:token" component={InApp(CancelPage)} />
+
+          {/* WEBサイト (/web/*) */}
+          <Route path="/web" component={InWeb(HomePage)} />
+          <Route path="/web/list" component={InWeb(ListPage)} />
+          <Route path="/web/shop/:id" component={InWeb(DetailPage)} />
+          <Route path="/web/reservation/:id" component={InWeb(ReservationPage)} />
+          <Route path="/web/cancel/:shopId/:token" component={InWeb(CancelPage)} />
+
+          {/* その他 */}
+          <Route path="/reservation/:id" component={InApp(ReservationPage)} />
+          <Route path="/cancel/:shopId/:token" component={InApp(CancelPage)} />
+          <Route component={InApp(NotFound)} />
         </Switch>
       </TooltipProvider>
     </QueryClientProvider>
