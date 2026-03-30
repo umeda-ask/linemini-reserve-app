@@ -4,7 +4,6 @@ import { createServer } from "http";
 import type { Request, Response, NextFunction } from "express";
 import { neon } from "@neondatabase/serverless";
 import crypto from "crypto";
-import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -41,6 +40,7 @@ const upload = multer({
 });
 
 // ─── 認証ユーティリティ ───
+function hashPassword(p: string) { return crypto.createHash("sha256").update(p).digest("hex"); }
 
 // ─── 予約テーブル初期化 ───
 let tablesInitialized = false;
@@ -285,8 +285,7 @@ export function ensureSetup(): Promise<void> {
           if (!username || !password) return res.status(400).json({ message: "Username and password required" });
           const rows = await sql`SELECT * FROM users WHERE username = ${username}`;
           const user = rows[0]; if (!user) return res.status(401).json({ message: "Invalid credentials" });
-          const valid = await bcrypt.compare(password, user.password_hash);
-          if (!valid) return res.status(401).json({ message: "Invalid credentials" });
+          if (user.password_hash !== password && hashPassword(password) !== user.password_hash) return res.status(401).json({ message: "Invalid credentials" });
           const payload = { userId: user.id, role: user.role, shopId: user.shop_id, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 };
           const token = Buffer.from(JSON.stringify(payload)).toString("base64");
           res.json({ id: user.id, username: user.username, role: user.role, shopId: user.shop_id, token });
