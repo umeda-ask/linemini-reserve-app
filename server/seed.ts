@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { areas, categories, subCategories, shops, coupons, shopCategories, users } from "../shared/schema";
-import { nanoid } from "nanoid";
+import crypto from "crypto";
+function nanoid(n = 10) { return crypto.randomBytes(Math.ceil(n * 3 / 4)).toString("base64url").slice(0, n); }
 import bcrypt from "bcryptjs";
 
 // ─────────────────────────────
