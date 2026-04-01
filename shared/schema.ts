@@ -307,4 +307,12 @@ export const AREAS = [
   { id: "oiso",           slug: "oiso",           name: "大磯",   label: "大磯エリア" },
   { id: "minamiashigara", slug: "minamiashigara", name: "南足柄", label: "南足柄エリア" },
   { id: "kaisei",         slug: "kaisei",         name: "開成",   label: "開成エリア" },
+  { id: "gotemba",        slug: "gotemba",        name: "御殿場", label: "御殿場エリア" },
+  { id: "hakone",         slug: "hakone",         name: "箱根",   label: "箱根エリア" },
+  { id: "atami",          slug: "atami",          name: "熱海",   label: "熱海エリア" },
+  { id: "sagamihara",     slug: "sagamihara",     name: "相模原", label: "相模原エリア" },
+  { id: "kamakura",       slug: "kamakura",       name: "鎌倉",   label: "鎌倉エリア" },
+  { id: "kawasaki",       slug: "kawasaki",       name: "川崎",   label: "川崎エリア" },
+  { id: "yokohama",       slug: "yokohama",       name: "横浜",   label: "横浜エリア" },
+  { id: "yokosuka",       slug: "yokosuka",       name: "横須賀", label: "横須賀エリア" },
 ] as const;
