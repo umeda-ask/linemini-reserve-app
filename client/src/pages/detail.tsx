@@ -195,7 +195,7 @@ export default function DetailPage() {
 
   const { isFavorite, toggleFavorite } = useFavorites();
   const { acquireCoupon, isAcquired } = useCoupons();
-  const { liked, count, like } = useLikes(shop?.id || 0);
+  const { liked, count, like } = useLikes(shop?.id || 0, shop?.likeCount || 0);
 
   if (isLoading) {
     return (
@@ -459,12 +459,6 @@ export default function DetailPage() {
             <Button variant="outline" onClick={() => navigate(basePath)} data-testid="button-back-bottom">
               <ArrowLeft className="w-4 h-4 mr-1" />
               戻る
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href={basePath} data-testid="link-top-bottom">
-                トップページ
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Link>
             </Button>
           </div>
         </div>
