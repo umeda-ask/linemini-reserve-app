@@ -314,6 +314,17 @@ function ShopSettingsPanel({ shopId }: { shopId: number }) {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
+    const isInvalidTable = !tableCount || parseInt(tableCount) < 1;
+    const isInvalidParty = !maxPartySize || parseInt(maxPartySize) < 1;
+
+    if (isInvalidTable || isInvalidParty) {
+      toast({ 
+        title: "入力エラー", 
+        description: "卓数と上限人数には1以上の数値を入力してください。", 
+        variant: "destructive" 
+      });
+      return;
+    }
     setSaving(true);
     try {
       await updateSettings(shopId, {
@@ -359,21 +370,21 @@ function ShopSettingsPanel({ shopId }: { shopId: number }) {
             卓数（同時に受け付ける予約の最大数）
           </Label>
           <div className="flex items-center gap-3 max-w-xs">
-            <Input
-              id="table-count"
-              type="number"
-              min="0"
-              max="100"
-              value={tableCount}
-              onChange={(e) => setTableCount(e.target.value)}
-              placeholder="例: 5"
-              className="w-28"
-              data-testid="input-table-count"
-            />
+          <Input
+            id="table-count"
+            type="number"
+            min="0"
+            max="100"
+            value={tableCount}
+            onChange={(e) => setTableCount(e.target.value)}
+            placeholder="例: 5"
+            className="w-28"
+            data-testid="input-table-count"
+          />
             <span className="text-sm text-muted-foreground">卓 / 台 / 組</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            同じ時間帯に受け付ける予約の最大数です。0または空欄の場合はスタッフの空き状況で制御されます。
+            同じ時間帯に受け付ける予約の最大数です。1以上の入力が必須です。
           </p>
         </div>
 
@@ -397,7 +408,7 @@ function ShopSettingsPanel({ shopId }: { shopId: number }) {
             <span className="text-sm text-muted-foreground">名まで</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            予約確認画面で選択できる人数の上限です。0または空欄の場合は最大20名まで選択可能です。
+            予約確認画面で選択できる人数の上限です。1以上の入力が必須です。
           </p>
         </div>
 
