@@ -19,11 +19,11 @@ export const httpServer = createServer(app);
 const sql = neon(process.env.DATABASE_URL!);
 
 // ─── ファイルアップロード ───
-// Vercel serverless は読み取り専用FSのため /tmp を使用。ローカルは server/uploads
+// Vercel は読み取り専用FSのため /tmp を使用
 const uploadsDir = process.env.VERCEL
   ? "/tmp/uploads"
   : path.join(process.cwd(), "server", "uploads");
-try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch { /* read-only FS (Vercel) の場合は無視 */ }
+try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch { /* read-only FS は無視 */ }
 
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
@@ -123,10 +123,14 @@ let _setup: Promise<void> | null = null;
 export function ensureSetup(): Promise<void> {
   if (!_setup) {
     _setup = (async () => {
-      const { runMigrations } = await import("../server/migrate");
-      await runMigrations();
-      const { seedDatabase } = await import("../server/seed");
-      await seedDatabase();
+      // Vercel環境ではDBは初期化済みのためmigration/seedをスキップ
+      // （pg Poolの接続問題を回避し、cold startを高速化）
+      if (!process.env.VERCEL) {
+        const { runMigrations } = await import("../server/migrate");
+        await runMigrations();
+        const { seedDatabase } = await import("../server/seed");
+        await seedDatabase();
+      }
 
       // 静的ファイル
       app.use("/uploads", express.static(uploadsDir, { setHeaders: (res) => res.setHeader("X-Content-Type-Options", "nosniff") }));
@@ -582,6 +586,13 @@ export function ensureSetup(): Promise<void> {
 
 // Vercel serverless handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  await ensureSetup();
-  return app(req as any, res as any);
+  try {
+    await ensureSetup();
+    return app(req as any, res as any);
+  } catch (err: any) {
+    console.error("[Vercel] Handler error:", err.message, err.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ message: err.message || "Internal server error" });
+    }
+  }
 }
