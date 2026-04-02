@@ -385,8 +385,26 @@ export function ensureSetup(): Promise<void> {
           res.json(allSlots.map(slot => { const [sh,sm]=slot.split(":").map(Number); const sStart=sh*60+sm; if (sStart+courseDuration>19*60) return {time:slot,available:false}; let max=0; for(let i=0;i<slotsNeeded;i++){const cm=sStart+i*30;const cs=`${String(Math.floor(cm/60)).padStart(2,"0")}:${String(cm%60).padStart(2,"0")}`;max=Math.max(max,slotCount.get(cs)||0);} return {time:slot,available:max<tableCount}; }));
         } catch (e: any) { console.error("slots error:", e); res.status(500).json({ message: "Failed to fetch slots" }); }
       });
-      app.put("/api/shops/:shopId/slots", async (_req, res) => res.json({ ok: true }));
-      app.post("/api/shops/:shopId/slots", async (_req, res) => res.json({ ok: true }));
+      app.put("/api/shops/:shopId/slots", async (req, res) => {
+        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+        try {
+          const { staffId, dayOfWeek, time, available } = req.body;
+          if (!staffId || dayOfWeek == null || !time || available == null) return res.status(400).json({ message: "Missing required fields" });
+          await sql`INSERT INTO booking_slots (shop_id, staff_id, day_of_week, time, available, updated_at) VALUES (${shopId}, ${staffId}, ${dayOfWeek}, ${time}, ${available}, NOW()) ON CONFLICT (shop_id, staff_id, day_of_week, time) DO UPDATE SET available=${available}, updated_at=NOW()`;
+          res.json({ ok: true });
+        } catch (e: any) { console.error("slot update error:", e); res.status(500).json({ message: "Failed to update slot" }); }
+      });
+      app.post("/api/shops/:shopId/slots", async (req, res) => {
+        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+        try {
+          const { staffId, dayOfWeek, times, available } = req.body;
+          if (!staffId || dayOfWeek == null || !Array.isArray(times) || available == null) return res.status(400).json({ message: "Missing required fields" });
+          for (const time of times) {
+            await sql`INSERT INTO booking_slots (shop_id, staff_id, day_of_week, time, available, updated_at) VALUES (${shopId}, ${staffId}, ${dayOfWeek}, ${time}, ${available}, NOW()) ON CONFLICT (shop_id, staff_id, day_of_week, time) DO UPDATE SET available=${available}, updated_at=NOW()`;
+          }
+          res.json({ ok: true });
+        } catch (e: any) { console.error("bulk slot update error:", e); res.status(500).json({ message: "Failed to bulk update slots" }); }
+      });
 
       // ─── 設定 ───
       app.get("/api/shops/:shopId/settings", async (req, res) => {
@@ -419,6 +437,16 @@ export function ensureSetup(): Promise<void> {
         try {
           const {customerName,customerPhone,customerEmail,date,time,staffId,courseId}=req.body;
           if (!customerName||!date||!time||!courseId) return res.status(400).json({message:"Missing required fields"});
+          const shopRows = await sql`SELECT enable_staff_assignment FROM shops WHERE id = ${shopId}`;
+          const enableStaffAssignment = shopRows[0]?.enable_staff_assignment || false;
+          if (enableStaffAssignment && !staffId) return res.status(400).json({message:"Staff selection is required"});
+          if (staffId) {
+            const dayOfWeek = new Date(date).getDay();
+            const slotRows = await sql`SELECT available FROM booking_slots WHERE shop_id = ${shopId} AND staff_id = ${staffId} AND day_of_week = ${dayOfWeek} AND time = ${time}`;
+            if (slotRows.length > 0 && !slotRows[0].available) return res.status(400).json({message:"Selected time slot is not available"});
+          }
+          const existing = await sql`SELECT COUNT(*) as cnt FROM booking_reservations WHERE shop_id = ${shopId} AND date = ${date} AND time = ${time} AND status != 'cancelled'`;
+          if (parseInt(existing[0]?.cnt || "0") > 0) return res.status(400).json({message:"Time slot already booked"});
           const token=crypto.randomUUID().replace(/-/g,"");
           await sql`INSERT INTO booking_reservations (shop_id,customer_name,customer_phone,customer_email,date,time,staff_id,course_id,status,paid,cancel_token) VALUES (${shopId},${customerName},${customerPhone||null},${customerEmail||null},${date},${time},${staffId||"__shop__"},${courseId.toString()},'confirmed',false,${token})`;
           const rows=await sql`SELECT * FROM booking_reservations WHERE cancel_token = ${token}`;
@@ -431,13 +459,13 @@ export function ensureSetup(): Promise<void> {
         try {
           const {id,status,paid,customerName,customerPhone,customerEmail,date,time}=req.body;
           const resId=parseInt(id); if (isNaN(resId)) return res.status(400).json({message:"Invalid reservation ID"});
-          if (status!==undefined) await sql`UPDATE booking_reservations SET status=${status} WHERE id=${resId} AND shop_id=${shopId}`;
-          if (paid!==undefined) await sql`UPDATE booking_reservations SET paid=${paid} WHERE id=${resId} AND shop_id=${shopId}`;
-          if (customerName!==undefined) await sql`UPDATE booking_reservations SET customer_name=${customerName} WHERE id=${resId} AND shop_id=${shopId}`;
-          if (customerPhone!==undefined) await sql`UPDATE booking_reservations SET customer_phone=${customerPhone} WHERE id=${resId} AND shop_id=${shopId}`;
-          if (customerEmail!==undefined) await sql`UPDATE booking_reservations SET customer_email=${customerEmail} WHERE id=${resId} AND shop_id=${shopId}`;
-          if (date!==undefined) await sql`UPDATE booking_reservations SET date=${date} WHERE id=${resId} AND shop_id=${shopId}`;
-          if (time!==undefined) await sql`UPDATE booking_reservations SET time=${time} WHERE id=${resId} AND shop_id=${shopId}`;
+          if (status!==undefined) await sql`UPDATE booking_reservations SET status=${status}, updated_at=NOW() WHERE id=${resId} AND shop_id=${shopId}`;
+          if (paid!==undefined) await sql`UPDATE booking_reservations SET paid=${paid}, updated_at=NOW() WHERE id=${resId} AND shop_id=${shopId}`;
+          if (customerName!==undefined) await sql`UPDATE booking_reservations SET customer_name=${customerName}, updated_at=NOW() WHERE id=${resId} AND shop_id=${shopId}`;
+          if (customerPhone!==undefined) await sql`UPDATE booking_reservations SET customer_phone=${customerPhone}, updated_at=NOW() WHERE id=${resId} AND shop_id=${shopId}`;
+          if (customerEmail!==undefined) await sql`UPDATE booking_reservations SET customer_email=${customerEmail}, updated_at=NOW() WHERE id=${resId} AND shop_id=${shopId}`;
+          if (date!==undefined) await sql`UPDATE booking_reservations SET date=${date}, updated_at=NOW() WHERE id=${resId} AND shop_id=${shopId}`;
+          if (time!==undefined) await sql`UPDATE booking_reservations SET time=${time}, updated_at=NOW() WHERE id=${resId} AND shop_id=${shopId}`;
           const rows=await sql`SELECT * FROM booking_reservations WHERE id=${resId} AND shop_id=${shopId}`;
           if (!rows[0]) return res.status(404).json({message:"Reservation not found"});
           res.json(toReservation(rows[0]));
