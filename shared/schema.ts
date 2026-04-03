@@ -204,6 +204,25 @@ export const bookingSettings = pgTable("booking_settings", {
 });
 
 // ─────────────────────────────
+// メニューアイテム（店舗ごとのメニュー）
+// ─────────────────────────────
+export const shopMenuItems = pgTable("shop_menu_items", {
+  id:           serial("id").primaryKey(),
+  shopId:       integer("shop_id").notNull(),
+  name:         text("name").notNull(),
+  price:        integer("price").notNull().default(0),
+  comment:      text("comment").default(""),
+  imageUrl:     text("image_url"),
+  isVisible:    boolean("is_visible").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertShopMenuItemSchema = createInsertSchema(shopMenuItems).omit({ id: true, createdAt: true });
+export type InsertShopMenuItem = z.infer<typeof insertShopMenuItemSchema>;
+export type ShopMenuItem = typeof shopMenuItems.$inferSelect;
+
+// ─────────────────────────────
 // Zodスキーマ（自動生成）
 // ─────────────────────────────
 export const insertAreaSchema         = createInsertSchema(areas).omit({ id: true });
@@ -307,12 +326,4 @@ export const AREAS = [
   { id: "oiso",           slug: "oiso",           name: "大磯",   label: "大磯エリア" },
   { id: "minamiashigara", slug: "minamiashigara", name: "南足柄", label: "南足柄エリア" },
   { id: "kaisei",         slug: "kaisei",         name: "開成",   label: "開成エリア" },
-  { id: "gotemba",        slug: "gotemba",        name: "御殿場", label: "御殿場エリア" },
-  { id: "hakone",         slug: "hakone",         name: "箱根",   label: "箱根エリア" },
-  { id: "atami",          slug: "atami",          name: "熱海",   label: "熱海エリア" },
-  { id: "sagamihara",     slug: "sagamihara",     name: "相模原", label: "相模原エリア" },
-  { id: "kamakura",       slug: "kamakura",       name: "鎌倉",   label: "鎌倉エリア" },
-  { id: "kawasaki",       slug: "kawasaki",       name: "川崎",   label: "川崎エリア" },
-  { id: "yokohama",       slug: "yokohama",       name: "横浜",   label: "横浜エリア" },
-  { id: "yokosuka",       slug: "yokosuka",       name: "横須賀", label: "横須賀エリア" },
 ] as const;
