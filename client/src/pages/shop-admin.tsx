@@ -35,9 +35,10 @@ import { CourseManagement } from "@/components/admin/course-management";
 import { StaffManagement } from "@/components/admin/staff-management";
 import { SlotManagement } from "@/components/admin/slot-management";
 import { ReservationList } from "@/components/admin/reservation-list";
+import { MenuManagement } from "@/components/admin/menu-management";
 import { fetchSettings, updateSettings } from "@/lib/booking-api";
 
-type ShopAdminTab = "images" | "courses" | "staff" | "slots" | "reservations" | "settings" | "payment";
+type ShopAdminTab = "images" | "menu" | "courses" | "staff" | "slots" | "reservations" | "settings" | "payment";
 
 function ImageUploadSlot({
   label,
@@ -314,17 +315,6 @@ function ShopSettingsPanel({ shopId }: { shopId: number }) {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    const isInvalidTable = !tableCount || parseInt(tableCount) < 1;
-    const isInvalidParty = !maxPartySize || parseInt(maxPartySize) < 1;
-
-    if (isInvalidTable || isInvalidParty) {
-      toast({ 
-        title: "入力エラー", 
-        description: "卓数と上限人数には1以上の数値を入力してください。", 
-        variant: "destructive" 
-      });
-      return;
-    }
     setSaving(true);
     try {
       await updateSettings(shopId, {
@@ -370,21 +360,21 @@ function ShopSettingsPanel({ shopId }: { shopId: number }) {
             卓数（同時に受け付ける予約の最大数）
           </Label>
           <div className="flex items-center gap-3 max-w-xs">
-          <Input
-            id="table-count"
-            type="number"
-            min="0"
-            max="100"
-            value={tableCount}
-            onChange={(e) => setTableCount(e.target.value)}
-            placeholder="例: 5"
-            className="w-28"
-            data-testid="input-table-count"
-          />
+            <Input
+              id="table-count"
+              type="number"
+              min="0"
+              max="100"
+              value={tableCount}
+              onChange={(e) => setTableCount(e.target.value)}
+              placeholder="例: 5"
+              className="w-28"
+              data-testid="input-table-count"
+            />
             <span className="text-sm text-muted-foreground">卓 / 台 / 組</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            同じ時間帯に受け付ける予約の最大数です。1以上の入力が必須です。
+            同じ時間帯に受け付ける予約の最大数です。0または空欄の場合はスタッフの空き状況で制御されます。
           </p>
         </div>
 
@@ -408,7 +398,7 @@ function ShopSettingsPanel({ shopId }: { shopId: number }) {
             <span className="text-sm text-muted-foreground">名まで</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            予約確認画面で選択できる人数の上限です。1以上の入力が必須です。
+            予約確認画面で選択できる人数の上限です。0または空欄の場合は最大20名まで選択可能です。
           </p>
         </div>
 
@@ -538,6 +528,7 @@ export default function ShopAdminPage() {
 
   const tabs: { id: ShopAdminTab; label: string; icon: typeof Store }[] = [
     { id: "images", label: "画像管理", icon: ImageIcon },
+    { id: "menu", label: "メニュー管理", icon: LayoutGrid },
     { id: "courses", label: "コース管理", icon: ListOrdered },
     { id: "staff", label: "スタッフ管理", icon: Users },
     { id: "slots", label: "予約枠管理", icon: Clock },
@@ -625,6 +616,7 @@ export default function ShopAdminPage() {
         </div>
 
         {activeTab === "images" && <ImageManagement shop={shop} />}
+        {activeTab === "menu" && <MenuManagement shopId={shopId} />}
         {activeTab === "courses" && <CourseManagement shopId={shopId} />}
         {activeTab === "staff" && <StaffManagement shopId={shopId} />}
         {activeTab === "slots" && <SlotManagement shopId={shopId} />}
