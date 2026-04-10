@@ -197,7 +197,10 @@ export function ensureSetup(): Promise<void> {
           await sql`INSERT INTO shops (slug, name, description, area_id, area, category, subcategory, address, phone, hours, closed_days, website, display_order, line_account_url, image_url, gallery_image_urls, is_active, enable_staff_assignment, reservation_url, reservation_image_url, like_count) VALUES (${slug}, ${b.name||""}, ${b.description||""}, ${b.areaId||1}, ${b.area||""}, ${b.category||""}, ${b.subcategory||null}, ${b.address||""}, ${b.phone||null}, ${b.hours||null}, ${b.closedDays||null}, ${b.website||null}, ${b.displayOrder||0}, ${b.lineAccountUrl||null}, ${b.imageUrl||""}, ${b.galleryImageUrls||[]}, ${b.isActive!==false}, ${b.enableStaffAssignment||false}, ${b.reservationUrl||null}, ${b.reservationImageUrl||null}, ${b.likeCount||0})`;
           const rows = await sql`SELECT * FROM shops WHERE slug = ${slug}`;
           if (!rows[0]) return res.status(500).json({ message: "Failed to create shop" });
-          res.status(201).json(toShop(rows[0]));
+
+          await sql`UPDATE shops SET reservation_url = CONCAT('/app/reservation/', id::text) WHERE id = ${rows[0].id} AND reservation_url IS NULL`;
+          const updatedRows = await sql`SELECT * FROM shops WHERE id = ${rows[0].id}`;
+          res.status(201).json(toShop(updatedRows[0]));
         } catch (e: any) { console.error("shop create error:", e); res.status(500).json({ message: "Failed to create shop" }); }
       });
       app.put("/api/shops/:id", async (req, res) => {
@@ -430,7 +433,7 @@ export function ensureSetup(): Promise<void> {
           
           let reservations: any[] = [];
           try {
-            reservations = await safeQuery(() => sql`SELECT r.time, COALESCE(c.duration,30) AS duration FROM booking_reservations r LEFT JOIN booking_courses c ON r.course_id = c.id AND c.shop_id = r.shop_id WHERE r.shop_id=${shopId} AND r.date=${date} AND r.status != 'cancelled'`);
+            reservations = await safeQuery(() => sql`SELECT r.time, COALESCE(c.duration,30) AS duration FROM booking_reservations r LEFT JOIN booking_courses c ON r.course_id::integer = c.id AND c.shop_id = r.shop_id WHERE r.shop_id=${shopId} AND r.date=${date} AND r.status != 'cancelled'`);
             console.log("reservations fetched:", reservations.length, "items");
           } catch (rte) {
             console.error("Reservations query error:", rte);
