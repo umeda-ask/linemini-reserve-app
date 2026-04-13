@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Clock, ChevronRight, CreditCard, Loader2, MapPin, Phone, Mail, CalendarOff, Send, CheckCircle } from "lucide-react";
+import { Clock, ChevronRight, CreditCard, Loader2, MapPin, Phone, Mail, CalendarOff, Send, CheckCircle, ImageIcon } from "lucide-react";
 import { fetchCourses, fetchSettings, createInquiry, formatPrice, formatDuration, type Course, type StoreSettings } from "@/lib/booking-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,17 @@ interface CourseSelectProps {
   onSelect: (course: Course) => void;
 }
 
-type Tab = "courses" | "store-info";
+type MenuItem = {
+    id: number;
+    name: string;
+    price: number;
+    comment: string;
+    imageUrl: string | null;
+    isVisible: boolean;
+    displayOrder: number;
+  };
+
+  type Tab = "courses" | "menu" | "store-info";
 
 export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onSelect }: CourseSelectProps) {
   const stripeActive = !!(stripeConnectId && stripeConnectStatus === "active");
@@ -23,6 +33,7 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
   const [loading, setLoading] = useState(true);
   const [storeName, setStoreName] = useState("Beaute Salon");
   const [storeDescription, setStoreDescription] = useState("あなたの美しさを引き出す");
+    const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
 
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState("");
@@ -34,9 +45,14 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchCourses(shopId), fetchSettings(shopId)]).then(([c, s]) => {
+    Promise.all([
+      fetchCourses(shopId),
+      fetchSettings(shopId),
+      fetch(`/api/shops/${shopId}/menu-items`).then((r) => r.ok ? r.json() : []),
+    ]).then(([c, s, m]) => {
       setCourses(c);
       setSettings(s);
+      setMenuItems(m || []);
       if (s.store_name) setStoreName(s.store_name);
       if (s.store_description) setStoreDescription(s.store_description);
       setLoading(false);
@@ -88,6 +104,19 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
         >
           コース一覧
         </button>
+        {menuItems.length > 0 && (
+          <button
+            onClick={() => setActiveTab("menu")}
+            className={`flex-1 px-4 py-3 text-center text-sm font-bold ${
+              activeTab === "menu"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground"
+            }`}
+            data-testid="tab-menu"
+          >
+            メニュー
+          </button>
+        )}
         <button
           onClick={() => setActiveTab("store-info")}
           className={`flex-1 px-4 py-3 text-center text-sm font-bold ${
@@ -171,7 +200,39 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
         </>
       )}
 
-      {activeTab === "store-info" && settings && (
+      {activeTab === "menu" && (
+          <div className="flex flex-col" data-testid="booking-menu-tab">
+            <div className="bg-muted px-4 py-2.5">
+              <h2 className="text-sm font-bold text-foreground">メニュー</h2>
+            </div>
+            <div className="flex flex-col divide-y divide-border bg-card">
+              {menuItems.map((item) => (
+                <div key={item.id} className="flex gap-3 px-4 py-3" data-testid={`menu-item-${item.id}`}>
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="w-16 h-16 object-cover rounded-md flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center flex-shrink-0">
+                      <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground" data-testid={`menu-name-${item.id}`}>{item.name}</p>
+                    <p className="text-base font-bold text-primary">¥{item.price.toLocaleString()}</p>
+                    {item.comment && (
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.comment}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "store-info" && settings && (
         <>
           {sent ? (
             <div className="flex flex-col items-center justify-center gap-4 px-6 py-16">
