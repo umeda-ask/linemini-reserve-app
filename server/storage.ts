@@ -97,6 +97,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(shops.displayOrder), desc(shops.updatedAt));
   }
 
+  async getCourses(shopId: number): Promise<StoreService[]> {
+    return db.select().from(storeServices).where(eq(storeServices.shopId, shopId)).orderBy(desc(storeServices.id));
+  }
+
   async getShopById(id: number): Promise<Shop | undefined> {
     const [shop] = await db.select().from(shops).where(eq(shops.id, id));
     return shop;
