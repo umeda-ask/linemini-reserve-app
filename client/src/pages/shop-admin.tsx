@@ -35,9 +35,10 @@ import { CourseManagement } from "@/components/admin/course-management";
 import { StaffManagement } from "@/components/admin/staff-management";
 import { SlotManagement } from "@/components/admin/slot-management";
 import { ReservationList } from "@/components/admin/reservation-list";
+import { MenuManagement } from "@/components/admin/menu-management";
 import { fetchSettings, updateSettings } from "@/lib/booking-api";
 
-type ShopAdminTab = "images" | "courses" | "staff" | "slots" | "reservations" | "settings" | "payment";
+type ShopAdminTab = "images" | "menu" | "courses" | "staff" | "slots" | "reservations" | "settings" | "payment";
 
 function ImageUploadSlot({
   label,
@@ -538,6 +539,7 @@ export default function ShopAdminPage() {
 
   const tabs: { id: ShopAdminTab; label: string; icon: typeof Store }[] = [
     { id: "images", label: "画像管理", icon: ImageIcon },
+    { id: "menu", label: "メニュー管理", icon: LayoutGrid },
     { id: "courses", label: "コース管理", icon: ListOrdered },
     { id: "staff", label: "スタッフ管理", icon: Users },
     { id: "slots", label: "予約枠管理", icon: Clock },
@@ -625,6 +627,7 @@ export default function ShopAdminPage() {
         </div>
 
         {activeTab === "images" && <ImageManagement shop={shop} />}
+        {activeTab === "menu" && <MenuManagement shopId={shopId} />}
         {activeTab === "courses" && <CourseManagement shopId={shopId} />}
         {activeTab === "staff" && <StaffManagement shopId={shopId} />}
         {activeTab === "slots" && <SlotManagement shopId={shopId} />}

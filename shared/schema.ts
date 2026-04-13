@@ -206,6 +206,20 @@ export const bookingSettings = pgTable("booking_settings", {
   updatedAt:            timestamp("updated_at").defaultNow(),
 });
 
+export const shopMenuItems = pgTable("shop_menu_items", {
+    id:           serial("id").primaryKey(),
+    shopId:       integer("shop_id").notNull(),
+    name:         text("name").notNull(),
+    price:        integer("price").notNull().default(0),
+    comment:      text("comment").notNull().default(""),
+    imageUrl:     text("image_url"),
+    isVisible:    boolean("is_visible").notNull().default(true),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt:    timestamp("created_at").notNull().defaultNow(),
+  });
+  export type InsertShopMenuItem = typeof shopMenuItems.$inferInsert;
+  export type ShopMenuItem       = typeof shopMenuItems.$inferSelect;
+
 export const bookingSlots = pgTable("booking_slots", {
   id:         serial("id").primaryKey(),
   shopId:     integer("shop_id").notNull(),
