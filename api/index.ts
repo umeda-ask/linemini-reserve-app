@@ -2,15 +2,19 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import express from "express";
 import { createServer } from "http";
 import type { Request, Response, NextFunction } from "express";
+import nodemailer from 'nodemailer';
+import handlebars from 'handlebars';
 import { neon } from "@neondatabase/serverless";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { Pool } from "pg";
+// import { Pool } from "pg";
+import { Pool } from "@neondatabase/serverless";
 import dotenv from "dotenv";
 dotenv.config();
+
 
 // ─── Express app ───
 export const app = express();
@@ -19,9 +23,11 @@ app.use(express.urlencoded({ extended: false }));
 export const httpServer = createServer(app);
 
 // ローカル用
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+console.log("API pool DATABASE_URL:", process.env.DATABASE_URL);
+
 // ─── DB接続 ───
 // const sql = neon(process.env.DATABASE_URL!);
 
@@ -133,14 +139,310 @@ function getAvatarFromName(name: string): string {
 }
 function toShop(r: any) { return { ...r, galleryImageUrls: r.gallery_image_urls, isActive: r.is_active, enableStaffAssignment: r.enable_staff_assignment, displayOrder: r.display_order, lineAccountUrl: r.line_account_url, imageUrl: r.image_url, reservationUrl: r.reservation_url, reservationImageUrl: r.reservation_image_url, likeCount: r.like_count, stripeConnectId: r.stripe_connect_id, stripeConnectStatus: r.stripe_connect_status, areaId: r.area_id, closedDays: r.closed_days, updatedAt: r.updated_at, createdAt: r.created_at }; }
 function toCoupon(r: any) { return { ...r, shopId: r.shop_id, discountType: r.discount_type, discountValue: r.discount_value, isFirstTimeOnly: r.is_first_time_only, isLineAccountCoupon: r.is_line_account_coupon, isActive: r.is_active, validFrom: r.valid_from, validUntil: r.valid_until, expiryDate: r.expiry_date, createdAt: r.created_at, updatedAt: r.updated_at }; }
-function toCourse(c: any) { return { id: c.id.toString(), name: c.name, category: c.category || "", duration: c.duration || 60, price: c.price || 0, description: c.description || "", prepaymentOnly: c.prepayment_only || false, imageUrl: c.image_url || null, staffIds: (c.staff_ids || []).map((x: any) => x.toString()) }; }
-function toReservation(r: any) { return { id: r.id.toString(), customerName: r.customer_name, customerPhone: r.customer_phone || undefined, customerEmail: r.customer_email || undefined, date: r.date, time: r.time, staffId: r.staff_id || "__shop__", courseId: r.course_id, status: r.status || "confirmed", paid: r.paid || false, reservationToken: r.cancel_token || undefined }; }
+function toCourse(c: any) {
+  return {
+    id: c.id.toString(),
+    name: c.name,
+    category: c.category || "",
+    duration: c.duration || 60,
+    price: c.price || 0,
+    description: c.description || "",
+    prepaymentOnly: c.prepayment_only || false,
+    enableRequestMode: c.enable_request_mode || false,
+    imageUrl: c.image_url || null,
+    staffIds: (c.staff_ids || []).map((x: any) => x.toString()),
+  };
+}
+function toReservation(r: any) {
+  return {
+    id: r.id.toString(),
+    customerName: r.customer_name,
+    customerPhone: r.customer_phone || undefined,
+    customerEmail: r.customer_email || undefined,
+    customerNote: r.customer_note || undefined,
+    date: r.date,
+    time: r.time,
+    staffId: r.staff_id || "__shop__",
+    courseId: r.course_id,
+    status: r.status || "confirmed",
+    paid: r.paid || false,
+    reservationToken: r.cancel_token || undefined,
+  };
+}
 async function safeQuery(fn: () => Promise<any>): Promise<any[]> {
   try { return (await fn()) || []; } catch (e: any) { if (e?.message?.includes("Cannot read properties of null")) return []; throw e; }
 }
 
 // ─── セットアップ（シングルトン） ───
 let _setup: Promise<void> | null = null;
+
+// ─── 予約完了メッセージ送信ロジック ───
+async function sendLineFlexMessage(lineId: string, lineMessageData: any, token: string) {
+  const accessToken = 'DHKMhlfcGdViCvlTpkYev/MIYW5KDb638DfsA8H2B+Zw76puYKcaZHp4UPAUCKwp0cgW71DzySHTVyljlISnuWx0QWN+6ClWxK1bbunMEqLHpVjnI+r9x7ACCPQAB1GBmbUVui5TuWectUrbZ1H1zAdB04t89/1O/w1cDnyilFU=';
+  const url = 'https://api.line.me/v2/bot/message/push';
+
+  const [y, m, d] = lineMessageData.date.split("-");
+  const dateLabel = `${y}年${m}月${d}日`;
+
+  const flexMessage = {
+    type: "bubble",
+    size: "mega",
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "0px",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#f97316",
+          paddingTop: "24px",
+          paddingBottom: "24px",
+          paddingStart: "20px",
+          paddingEnd: "20px",
+          contents: [
+            {
+              type: "text",
+              text: "予約完了通知",
+              weight: "bold",
+              size: "xl",
+              color: "#ffffff",
+              align: "center"
+            },
+          ]
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          paddingAll: "20px",
+          spacing: "lg",
+          contents: [
+            {
+              type: "text",
+              text: "この度はご予約いただき誠にありがとうございます。\n以下の内容で承りましたので、内容をご確認ください。",
+              size: "sm",
+              color: "#666666",
+              wrap: true
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              backgroundColor: "#fff7ed",
+              cornerRadius: "12px",
+              paddingAll: "16px",
+              spacing: "md",
+              contents: [
+                {
+                  type: "box",
+                  layout: "vertical",
+                  spacing: "xs",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "店舗名",
+                      size: "xs",
+                      color: "#9ca3af"
+                    },
+                    {
+                      type: "text",
+                      text: lineMessageData.shop_name,
+                      size: "md",
+                      color: "#111827",
+                      weight: "bold",
+                      wrap: true
+                    }
+                  ]
+                },
+                {
+                  type: "separator",
+                  color: "#fdba74"
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  spacing: "xs",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "予約コース",
+                      size: "xs",
+                      color: "#9ca3af"
+                    },
+                    {
+                      type: "text",
+                      text: lineMessageData.course_name,
+                      size: "md",
+                      color: "#111827",
+                      weight: "bold",
+                      wrap: true
+                    }
+                  ]
+                },
+                {
+                  type: "separator",
+                  color: "#fdba74"
+                },
+                {
+                  type: "box",
+                  layout: "vertical",
+                  spacing: "xs",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "予約日時",
+                      size: "xs",
+                      color: "#9ca3af"
+                    },
+                    {
+                      type: "text",
+                      text: `${dateLabel} ${lineMessageData.time} 〜`,
+                      size: "md",
+                      color: "#111827",
+                      weight: "bold",
+                      wrap: true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              type: "text",
+              text: "当日のご来店をスタッフ一同、心よりお待ちしております。",
+              size: "sm",
+              color: "#666666",
+              wrap: true
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              spacing: "sm",
+              paddingTop: "16px",
+              contents: [
+                {
+                  type: "text",
+                  text: "キャンセルはこちら",
+                  size: "sm",
+                  color: "#666666",
+                  align: "center"
+                },
+                {
+                  type: "button",
+                  style: "primary",
+                  color: "#f97316",
+                  action: {
+                    type: "uri",
+                    label: "予約をキャンセルする",
+                    uri: `https://domain/app/cancel/${lineMessageData.shop_id}/${token}`
+                  }
+                },
+                {
+                  type: "text",
+                  text: "※キャンセルの有効期限は予約日の前日までとなります。\nそれ以降の変更はお電話にてご連絡ください。",
+                  size: "xs",
+                  color: "#9ca3af",
+                  wrap: true,
+                  align: "center"
+                }
+              ]
+            },
+            {
+              type: "text",
+              text: "© 2026 神奈川おでかけナビ All Rights Reserved.",
+              size: "xs",
+              color: "#c0c0c0",
+              align: "center",
+              margin: "md"
+            }
+          ]
+        }
+      ]
+    }
+  };
+
+  await axios.post(url, {
+    to: lineId,
+    messages: [{ type: "flex", altText: "予約完了のお知らせ", contents: flexMessage }]
+  }, {
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+  });
+}
+
+async function sendEmailMessage(lineMessageData: any, token: string) {
+  const transporter = nodemailer.createTransport({
+    host: "smtp.office365.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: "n.tamura@askpro.co.jp",
+      pass: "Jak84520",
+    },
+    tls: {
+      ciphers: "SSLv3",
+      rejectUnauthorized: false,
+    },
+  });
+
+  const [y, m, d] = lineMessageData.date.split("-");
+  const dateLabel = `${y}年${m}月${d}日`;
+
+  const templatePath = path.join(process.cwd(), 'server/mail_templates/reserved_email.html');
+  const source = fs.readFileSync(templatePath, 'utf8');
+
+  // 変数を流し込む
+  const template = handlebars.compile(source);
+  const htmlData = {
+      ...lineMessageData,
+      date: dateLabel,
+      reservation_token: token
+    };
+  const htmlToSend = template(htmlData);
+
+  // 送信
+  await transporter.sendMail({
+    from: '"予約システム" <n.tamura@askpro.co.jp>',
+    to: lineMessageData.customer_email,
+    subject: '【予約完了】ご予約を承りました',
+    html: htmlToSend,
+  });
+}
+
+async function sendEmailToStore(lineMessageData: any) {
+  const transporter = nodemailer.createTransport({
+    host: "smtp.office365.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: "n.tamura@askpro.co.jp",
+      pass: "Jak84520",
+    },
+    tls: {
+      ciphers: "SSLv3",
+      rejectUnauthorized: false,
+    },
+  });
+
+  const [y, m, d] = lineMessageData.date.split("-");
+  const dateLabel = `${y}年${m}月${d}日`;
+
+  const templatePath = path.join(process.cwd(), 'server/mail_templates/reserved_email_to_store.html');
+  const source = fs.readFileSync(templatePath, 'utf8');
+
+  // 変数を流し込む
+  const template = handlebars.compile(source);
+  const htmlData = {
+      ...lineMessageData,
+      date: dateLabel,
+    };
+  const htmlToSend = template(htmlData);
+
+  // 送信
+  await transporter.sendMail({
+    from: '"予約システム" <n.tamura@askpro.co.jp>',
+    to: lineMessageData.shop_email,
+    subject: '【予約完了】ご予約を承りました',
+    html: htmlToSend,
+  });
+}
 
 export function ensureSetup(): Promise<void> {
   if (!_setup) {
@@ -170,11 +472,19 @@ export function ensureSetup(): Promise<void> {
         try {
           const { areaId, categoryId } = req.query;
           let rows;
-          if (areaId) rows = await sql`SELECT * FROM shops WHERE area_id = ${parseInt(areaId as string)} ORDER BY display_order DESC, updated_at DESC`;
-          else if (categoryId) rows = await sql`SELECT s.* FROM shops s JOIN shop_categories sc ON sc.shop_id = s.id WHERE sc.category_id = ${parseInt(categoryId as string)} ORDER BY s.display_order DESC, s.updated_at DESC`;
-          else rows = await sql`SELECT * FROM shops ORDER BY display_order DESC, updated_at DESC`;
+          if (areaId)
+            rows =
+              await sql`SELECT * FROM shops WHERE area_id = ${parseInt(areaId as string)} ORDER BY display_order DESC, updated_at DESC`;
+          else if (categoryId)
+            rows =
+              await sql`SELECT s.* FROM shops s JOIN shop_categories sc ON sc.shop_id = s.id WHERE sc.category_id = ${parseInt(categoryId as string)} ORDER BY s.display_order DESC, s.updated_at DESC`;
+          else
+            rows =
+              await sql`SELECT * FROM shops ORDER BY display_order DESC, updated_at DESC`;
           res.json(rows.map(toShop));
-        } catch { res.status(500).json({ message: "Failed to fetch shops" }); }
+        } catch {
+          res.status(500).json({ message: "Failed to fetch shops" });
+        }
       });
       app.get("/api/shops/slug/:slug", async (req, res) => {
         try {
@@ -185,11 +495,16 @@ export function ensureSetup(): Promise<void> {
       });
       app.get("/api/shops/:id", async (req, res) => {
         try {
-          const id = parseInt(req.params.id); if (isNaN(id)) return res.status(400).json({ message: "Invalid shop ID" });
+          const id = parseInt(req.params.id);
+          if (isNaN(id))
+            return res.status(400).json({ message: "Invalid shop ID" });
           const rows = await sql`SELECT * FROM shops WHERE id = ${id}`;
-          if (!rows[0]) return res.status(404).json({ message: "Shop not found" });
+          if (!rows[0])
+            return res.status(404).json({ message: "Shop not found" });
           res.json(toShop(rows[0]));
-        } catch { res.status(500).json({ message: "Failed to fetch shop" }); }
+        } catch {
+          res.status(500).json({ message: "Failed to fetch shop" });
+        }
       });
       app.post("/api/shops", async (req, res) => {
         try {
@@ -205,34 +520,63 @@ export function ensureSetup(): Promise<void> {
       });
       app.put("/api/shops/:id", async (req, res) => {
         try {
-          const id = parseInt(req.params.id); if (isNaN(id)) return res.status(400).json({ message: "Invalid shop ID" });
+          const id = parseInt(req.params.id);
+          if (isNaN(id))
+            return res.status(400).json({ message: "Invalid shop ID" });
           const b = req.body;
-          if (b.name !== undefined) await sql`UPDATE shops SET name=${b.name} WHERE id=${id}`;
-          if (b.description !== undefined) await sql`UPDATE shops SET description=${b.description} WHERE id=${id}`;
-          if (b.area !== undefined) await sql`UPDATE shops SET area=${b.area} WHERE id=${id}`;
-          if (b.category !== undefined) await sql`UPDATE shops SET category=${b.category} WHERE id=${id}`;
-          if (b.subcategory !== undefined) await sql`UPDATE shops SET subcategory=${b.subcategory} WHERE id=${id}`;
-          if (b.address !== undefined) await sql`UPDATE shops SET address=${b.address} WHERE id=${id}`;
-          if (b.phone !== undefined) await sql`UPDATE shops SET phone=${b.phone} WHERE id=${id}`;
-          if (b.hours !== undefined) await sql`UPDATE shops SET hours=${b.hours} WHERE id=${id}`;
-          if (b.closedDays !== undefined) await sql`UPDATE shops SET closed_days=${b.closedDays} WHERE id=${id}`;
-          if (b.website !== undefined) await sql`UPDATE shops SET website=${b.website} WHERE id=${id}`;
-          if (b.displayOrder !== undefined) await sql`UPDATE shops SET display_order=${b.displayOrder} WHERE id=${id}`;
-          if (b.lineAccountUrl !== undefined) await sql`UPDATE shops SET line_account_url=${b.lineAccountUrl} WHERE id=${id}`;
-          if (b.imageUrl !== undefined) await sql`UPDATE shops SET image_url=${b.imageUrl} WHERE id=${id}`;
-          if (b.galleryImageUrls !== undefined) await sql`UPDATE shops SET gallery_image_urls=${b.galleryImageUrls} WHERE id=${id}`;
-          if (b.isActive !== undefined) await sql`UPDATE shops SET is_active=${b.isActive} WHERE id=${id}`;
-          if (b.enableStaffAssignment !== undefined) await sql`UPDATE shops SET enable_staff_assignment=${b.enableStaffAssignment} WHERE id=${id}`;
-          if (b.reservationUrl !== undefined) await sql`UPDATE shops SET reservation_url=${b.reservationUrl} WHERE id=${id}`;
-          if (b.reservationImageUrl !== undefined) await sql`UPDATE shops SET reservation_image_url=${b.reservationImageUrl} WHERE id=${id}`;
-          if (b.likeCount !== undefined) await sql`UPDATE shops SET like_count=${b.likeCount} WHERE id=${id}`;
-          if (b.stripeConnectId !== undefined) await sql`UPDATE shops SET stripe_connect_id=${b.stripeConnectId} WHERE id=${id}`;
-          if (b.stripeConnectStatus !== undefined) await sql`UPDATE shops SET stripe_connect_status=${b.stripeConnectStatus} WHERE id=${id}`;
+          if (b.name !== undefined)
+            await sql`UPDATE shops SET name=${b.name} WHERE id=${id}`;
+          if (b.description !== undefined)
+            await sql`UPDATE shops SET description=${b.description} WHERE id=${id}`;
+          if (b.area !== undefined)
+            await sql`UPDATE shops SET area=${b.area} WHERE id=${id}`;
+          if (b.category !== undefined)
+            await sql`UPDATE shops SET category=${b.category} WHERE id=${id}`;
+          if (b.subcategory !== undefined)
+            await sql`UPDATE shops SET subcategory=${b.subcategory} WHERE id=${id}`;
+          if (b.address !== undefined)
+            await sql`UPDATE shops SET address=${b.address} WHERE id=${id}`;
+          if (b.phone !== undefined)
+            await sql`UPDATE shops SET phone=${b.phone} WHERE id=${id}`;
+          if (b.hours !== undefined)
+            await sql`UPDATE shops SET hours=${b.hours} WHERE id=${id}`;
+          if (b.closedDays !== undefined)
+            await sql`UPDATE shops SET closed_days=${b.closedDays} WHERE id=${id}`;
+          if (b.website !== undefined)
+            await sql`UPDATE shops SET website=${b.website} WHERE id=${id}`;
+          if (b.displayOrder !== undefined)
+            await sql`UPDATE shops SET display_order=${b.displayOrder} WHERE id=${id}`;
+          if (b.lineAccountUrl !== undefined)
+            await sql`UPDATE shops SET line_account_url=${b.lineAccountUrl} WHERE id=${id}`;
+          if (b.galleryImageUrls !== undefined) {
+            const firstImage = b.galleryImageUrls?.[0] || null;
+            await sql`UPDATE shops SET gallery_image_urls=${b.galleryImageUrls}, image_url = ${firstImage} WHERE id=${id}`;
+          }
+            // if (b.imageUrl !== undefined)
+            // await sql`UPDATE shops SET image_url=${firstImage},  WHERE id=${id}`;
+          if (b.isActive !== undefined)
+            await sql`UPDATE shops SET is_active=${b.isActive} WHERE id=${id}`;
+          if (b.enableStaffAssignment !== undefined)
+            await sql`UPDATE shops SET enable_staff_assignment=${b.enableStaffAssignment} WHERE id=${id}`;
+          if (b.reservationUrl !== undefined)
+            await sql`UPDATE shops SET reservation_url=${b.reservationUrl} WHERE id=${id}`;
+          if (b.reservationImageUrl !== undefined)
+            await sql`UPDATE shops SET reservation_image_url=${b.reservationImageUrl} WHERE id=${id}`;
+          if (b.likeCount !== undefined)
+            await sql`UPDATE shops SET like_count=${b.likeCount} WHERE id=${id}`;
+          if (b.stripeConnectId !== undefined)
+            await sql`UPDATE shops SET stripe_connect_id=${b.stripeConnectId} WHERE id=${id}`;
+          if (b.stripeConnectStatus !== undefined)
+            await sql`UPDATE shops SET stripe_connect_status=${b.stripeConnectStatus} WHERE id=${id}`;
           await sql`UPDATE shops SET updated_at=NOW() WHERE id=${id}`;
           const rows = await sql`SELECT * FROM shops WHERE id=${id}`;
-          if (!rows[0]) return res.status(404).json({ message: "Shop not found" });
+          if (!rows[0])
+            return res.status(404).json({ message: "Shop not found" });
           res.json(toShop(rows[0]));
-        } catch (e: any) { console.error("shop update error:", e); res.status(500).json({ message: "Failed to update shop" }); }
+        } catch (e: any) {
+          console.error("shop update error:", e);
+          res.status(500).json({ message: "Failed to update shop" });
+        }
       });
       app.post("/api/shops/:id/like", async (req, res) => {
         try {
@@ -261,7 +605,44 @@ export function ensureSetup(): Promise<void> {
           res.status(201).json(toCoupon(rows[0]));
         } catch (e: any) { console.error(e); res.status(500).json({ message: "Failed to create coupon" }); }
       });
-      app.get("/api/coupons", async (_req, res) => { try { res.json((await sql`SELECT * FROM coupons ORDER BY updated_at DESC`).map(toCoupon)); } catch { res.status(500).json({ message: "Failed to fetch coupons" }); } });
+      // app.get("/api/coupons", async (_req, res) => {
+      //   try {
+      //     console.log("[/api/coupons] hit");
+      //     res.json(
+      //       (await sql`SELECT * FROM coupons ORDER BY updated_at DESC`).map(
+      //         toCoupon,
+      //       ),
+      //     );
+      //   } catch {
+      //     res.status(500).json({ message: "Failed to fetch coupons" });
+      //   }
+      // });
+      app.get("/api/coupons", async (_req, res) => {
+        try {
+          console.log("[/api/coupons] hit");
+
+          const rows = await sql`SELECT * FROM coupons ORDER BY updated_at DESC`;
+          console.log("[/api/coupons] raw rows:", rows.length);
+          console.log("[/api/coupons] first row:", rows[0]);
+
+          const result = rows.map((row, i) => {
+            try {
+              return toCoupon(row);
+            } catch (e) {
+              console.error(`[/api/coupons] toCoupon failed at row ${i}:`, row);
+              throw e;
+            }
+          });
+
+          res.json(result);
+        } catch (e) {
+          console.error("[/api/coupons] error:", e);
+          res.status(500).json({
+            message: "Failed to fetch coupons",
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      });
       app.put("/api/coupons/:id", async (req, res) => {
         try {
           const id = parseInt(req.params.id); if (isNaN(id)) return res.status(400).json({ message: "Invalid coupon ID" });
@@ -305,6 +686,7 @@ export function ensureSetup(): Promise<void> {
           res.json({ id: user.id, username: user.username, role: user.role, shopId: user.shop_id, token });
         } catch (e: any) { console.error("login error:", e); res.status(500).json({ message: "Login failed" }); }
       });
+
       app.post("/api/auth/logout", (_req, res) => res.json({ message: "Logged out" }));
       app.get("/api/auth/me", async (req, res) => {
         const h = req.headers.authorization;
@@ -322,7 +704,8 @@ export function ensureSetup(): Promise<void> {
       app.get("/api/shops/:shopId/staff", async (req, res) => {
         const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
         try {
-          await seedShopIfEmpty(shopId);
+          // 標準コースをインサートする（利用意図が不明なためコメントアウトで対応）
+          // await seedShopIfEmpty(shopId);
           const rows = await safeQuery(() => sql`SELECT * FROM booking_staff WHERE shop_id = ${shopId} AND is_active = true ORDER BY id`);
           const courseRows = await safeQuery(() => sql`SELECT id, staff_ids FROM booking_courses WHERE shop_id = ${shopId} AND is_active = true`);
           res.json(rows.map((s: any) => ({ id: s.id.toString(), name: s.name, role: s.role || "", avatar: s.avatar || "", courseIds: courseRows.filter((c: any) => (c.staff_ids || []).includes(s.id.toString())).map((c: any) => c.id.toString()) })));
@@ -356,36 +739,86 @@ export function ensureSetup(): Promise<void> {
 
       // ─── コース ───
       app.get("/api/shops/:shopId/courses", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId))
+          return res.status(400).json({ message: "Invalid shop ID" });
         try {
-          await seedShopIfEmpty(shopId);
-          const rows = await safeQuery(() => sql`SELECT * FROM booking_courses WHERE shop_id=${shopId} AND is_active=true ORDER BY id`);
+          // 標準コースをインサートする（利用意図が不明なためコメントアウトで対応）
+          // await seedShopIfEmpty(shopId);
+          const rows = await safeQuery(
+            () =>
+              sql`SELECT * FROM booking_courses WHERE shop_id=${shopId} AND is_active=true ORDER BY id`,
+          );
           res.json(rows.map(toCourse));
-        } catch (e: any) { console.error("courses error:", e); res.status(500).json({ message: "Failed to fetch courses" }); }
+        } catch (e: any) {
+          console.error("courses error:", e);
+          res.status(500).json({ message: "Failed to fetch courses" });
+        }
       });
+      
       app.post("/api/shops/:shopId/courses", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId))
+          return res.status(400).json({ message: "Invalid shop ID" });
         try {
-          const { name, category, duration, price, description, prepaymentOnly, imageUrl, staffIds } = req.body;
-          await sql`INSERT INTO booking_courses (shop_id, name, category, duration, price, description, prepayment_only, image_url, staff_ids) VALUES (${shopId}, ${name||""}, ${category||""}, ${duration||60}, ${price||0}, ${description||""}, ${prepaymentOnly||false}, ${imageUrl||null}, ${staffIds||[]})`;
-          const maxRow = await sql`SELECT MAX(id) as id FROM booking_courses WHERE shop_id = ${shopId}`;
-          const newId = maxRow[0]?.id; if (newId == null) return res.status(500).json({ message: "Failed to create course" });
-          const rows = await sql`SELECT * FROM booking_courses WHERE id = ${newId}`;
+          const {
+            name,
+            category,
+            duration,
+            price,
+            description,
+            prepaymentOnly,
+            enableRequestMode,
+            imageUrl,
+            staffIds,
+          } = req.body;
+          await sql`INSERT INTO booking_courses (shop_id, name, category, duration, price, description, prepayment_only, enable_request_mode , image_url, staff_ids) VALUES (${shopId}, ${name || ""}, ${category || ""}, ${duration || 60}, ${price || 0}, ${description || ""}, ${prepaymentOnly || false}, ${enableRequestMode || false}, ${imageUrl || null}, ${staffIds || []})`;
+          const maxRow =
+            await sql`SELECT MAX(id) as id FROM booking_courses WHERE shop_id = ${shopId}`;
+          const newId = maxRow[0]?.id;
+          if (newId == null)
+            return res.status(500).json({ message: "Failed to create course" });
+          const rows =
+            await sql`SELECT * FROM booking_courses WHERE id = ${newId}`;
           res.status(201).json(toCourse(rows[0]));
-        } catch { res.status(500).json({ message: "Failed to create course" }); }
+        } catch {
+          res.status(500).json({ message: "Failed to create course" });
+        }
       });
+
+
       app.put("/api/shops/:shopId/courses", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId))
+          return res.status(400).json({ message: "Invalid shop ID" });
         try {
-          const { id, name, category, duration, price, description, prepaymentOnly, imageUrl, staffIds } = req.body;
+          const {
+            id,
+            name,
+            category,
+            duration,
+            price,
+            description,
+            prepaymentOnly,
+            enableRequestMode,
+            imageUrl,
+            staffIds,
+          } = req.body;
           const courseId = parseInt(id);
-          const cnt = await sql`SELECT COUNT(*) as cnt FROM booking_courses WHERE id = ${courseId} AND shop_id = ${shopId}`;
-          if (parseInt(cnt[0]?.cnt || "0") === 0) return res.status(404).json({ message: "Course not found" });
-          await sql`UPDATE booking_courses SET name=${name||""}, category=${category||""}, duration=${duration||60}, price=${price||0}, description=${description||""}, prepayment_only=${prepaymentOnly||false}, image_url=${imageUrl||null}, staff_ids=${staffIds||[]}, updated_at=NOW() WHERE id=${courseId} AND shop_id=${shopId}`;
-          const rows = await sql`SELECT * FROM booking_courses WHERE id = ${courseId} AND shop_id = ${shopId}`;
+          const cnt =
+            await sql`SELECT COUNT(*) as cnt FROM booking_courses WHERE id = ${courseId} AND shop_id = ${shopId}`;
+          if (parseInt(cnt[0]?.cnt || "0") === 0)
+            return res.status(404).json({ message: "Course not found" });
+          await sql`UPDATE booking_courses SET name=${name || ""}, category=${category || ""}, duration=${duration || 60}, price=${price || 0}, description=${description || ""}, prepayment_only=${prepaymentOnly || false}, enable_request_mode=${enableRequestMode || false}, image_url=${imageUrl || null}, staff_ids=${staffIds || []}, updated_at=NOW() WHERE id=${courseId} AND shop_id=${shopId}`;
+          const rows =
+            await sql`SELECT * FROM booking_courses WHERE id = ${courseId} AND shop_id = ${shopId}`;
           res.json(toCourse(rows[0]));
-        } catch { res.status(500).json({ message: "Failed to update course" }); }
+        } catch {
+          res.status(500).json({ message: "Failed to update course" });
+        }
       });
+
+
       app.delete("/api/shops/:shopId/courses", async (req, res) => {
         const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
         try { await sql`UPDATE booking_courses SET is_active=false WHERE id=${parseInt(req.query.id as string)} AND shop_id=${shopId}`; res.json({ message: "Course deleted" }); }
@@ -394,9 +827,12 @@ export function ensureSetup(): Promise<void> {
 
       // ─── スロット ───
       app.get("/api/shops/:shopId/slots", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId))
+          return res.status(400).json({ message: "Invalid shop ID" });
         try {
-          const date = req.query.date as string; const courseId = req.query.courseId as string | undefined;
+          const date = req.query.date as string;
+          const courseId = req.query.courseId as string | undefined;
           console.log("slots request - shopId:", shopId, "date:", date, "courseId:", courseId);
           
           // Validate date format
@@ -500,52 +936,205 @@ export function ensureSetup(): Promise<void> {
 
       // ─── 設定 ───
       app.get("/api/shops/:shopId/settings", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId))
+          return res.status(400).json({ message: "Invalid shop ID" });
         try {
-          await seedShopIfEmpty(shopId);
-          const cnt = await sql`SELECT COUNT(*) as cnt FROM booking_settings WHERE shop_id=${shopId}`;
-          if (parseInt(cnt[0]?.cnt||"0")>0) { const rows = await sql`SELECT * FROM booking_settings WHERE shop_id=${shopId}`; const s=rows[0]; return res.json({store_name:s.store_name||"",store_description:s.store_description||"",store_address:s.store_address||"",store_phone:s.store_phone||"",store_email:s.store_email||"",store_hours:s.store_hours||"",store_closed_days:s.store_closed_days||"",banner_url:s.banner_url||"",staff_selection_enabled:s.staff_selection_enabled||"false",table_count:s.table_count!=null?String(s.table_count):"0",max_party_size:s.max_party_size!=null?String(s.max_party_size):"0",store_open_time:s.store_open_time||"10:00",store_close_time:s.store_close_time||"19:00"}); }
-          const shopRows = await sql`SELECT * FROM shops WHERE id=${shopId}`; if (!shopRows[0]) return res.status(404).json({message:"Shop not found"});
-          const s=shopRows[0]; res.json({store_name:s.name||"",store_description:s.description||"",store_address:s.address||"",store_phone:s.phone||"",store_email:"",store_hours:s.hours||"",store_closed_days:s.closed_days||"",banner_url:s.image_url||"",staff_selection_enabled:s.enable_staff_assignment?"true":"false",store_open_time:"10:00",store_close_time:"19:00"});
-        } catch (e: any) { console.error("settings error:", e); res.status(500).json({message:"Failed to fetch settings"}); }
+          // 標準コースをインサートする（利用意図が不明なためコメントアウトで対応）
+          // await seedShopIfEmpty(shopId);
+          const cnt =
+            await sql`SELECT COUNT(*) as cnt FROM booking_settings WHERE shop_id=${shopId}`;
+          if (parseInt(cnt[0]?.cnt || "0") > 0) {
+            const rows =
+              // await sql`SELECT bs.*, s.name as shop_name, s.description as shop_description, s.address as shop_address, s.phone as shop_phone, s.hours as shop_hours, s.closed_days as shop_closed_days FROM booking_settings bs JOIN shops s ON s.id = bs.shop_id WHERE bs.shop_id=${shopId}`;
+              // await sql`SELECT * FROM booking_settings WHERE shop_id=${shopId}`;
+              await sql`SELECT bs.*, s.category FROM booking_settings as bs LEFT JOIN shops as s ON s.id = bs.shop_id WHERE bs.shop_id=${shopId}`
+            const s = rows[0];
+            return res.json({
+              store_name: s.store_name || "",
+              store_description: s.store_description || "",
+              store_address: s.store_address || "",
+              store_phone: s.store_phone || "",
+              store_email: s.store_email || "",
+              store_hours: s.store_hours || "",
+              store_closed_days: s.store_closed_days || "",
+              banner_url: s.banner_url || "",
+              staff_selection_enabled: s.staff_selection_enabled || "false",
+              table_count: s.table_count != null ? String(s.table_count) : "0",
+              max_party_size:
+                s.max_party_size != null ? String(s.max_party_size) : "0",
+              shop_category: s.category
+              // shop_info_name: s.shop_name || "",
+              // shop_info_description: s.shop_description || "",
+              // shop_info_address: s.shop_address || "",
+              // shop_info_phone: s.shop_phone || "",
+              // shop_info_hours: s.shop_hours || "",
+              // shop_info_closed_days: s.shop_closed_days || ""
+            });
+          }
+          const shopRows = await sql`SELECT * FROM shops WHERE id=${shopId}`;
+          if (!shopRows[0])
+            return res.status(404).json({ message: "Shop not found" });
+          const s = shopRows[0];
+          res.json({
+            store_name: s.name || "",
+            store_description: s.description || "",
+            store_address: s.address || "",
+            store_phone: s.phone || "",
+            store_email: "",
+            store_hours: s.hours || "",
+            store_closed_days: s.closed_days || "",
+            banner_url: s.image_url || "",
+            staff_selection_enabled: s.enable_staff_assignment
+              ? "true"
+              : "false",
+          });
+        } catch (e: any) {
+          console.error("settings error:", e);
+          res.status(500).json({ message: "Failed to fetch settings" });
+        }
       });
+
+      // app.put("/api/shops/:shopId/settings", async (req, res) => {
+      //   const shopId = parseInt(req.params.shopId);
+      //   if (isNaN(shopId))
+      //     return res.status(400).json({ message: "Invalid shop ID" });
+      //   try {
+      //     const s = req.body;
+      //     const tc = parseInt(s.table_count || "0", 10) || 0;
+      //     const mp = parseInt(s.max_party_size || "0", 10) || 0;
+      //     await sql`INSERT INTO booking_settings (shop_id,store_name,store_description,store_address,store_phone,store_email,store_hours,store_closed_days,banner_url,staff_selection_enabled,table_count,max_party_size,updated_at) VALUES (${shopId},${s.store_name || ""},${s.store_description || ""},${s.store_address || ""},${s.store_phone || ""},${s.store_email || ""},${s.store_hours || ""},${s.store_closed_days || ""},${s.banner_url || ""},${s.staff_selection_enabled || "false"},${tc},${mp},NOW()) ON CONFLICT (shop_id) DO UPDATE SET store_name=${s.store_name || ""},store_description=${s.store_description || ""},store_address=${s.store_address || ""},store_phone=${s.store_phone || ""},store_email=${s.store_email || ""},store_hours=${s.store_hours || ""},store_closed_days=${s.store_closed_days || ""},banner_url=${s.banner_url || ""},staff_selection_enabled=${s.staff_selection_enabled || "false"},table_count=${tc},max_party_size=${mp},updated_at=NOW()`;
+      //     res.json(s);
+      //   } catch {
+      //     res.status(500).json({ message: "Failed to update settings" });
+      //   }
+      // });
+
       app.put("/api/shops/:shopId/settings", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+
         try {
-          const s=req.body; const tc=parseInt(s.table_count||"0",10)||0; const mp=parseInt(s.max_party_size||"0",10)||0; const ot=s.store_open_time||"10:00"; const ct=s.store_close_time||"19:00";
-          await sql`INSERT INTO booking_settings (shop_id,store_name,store_description,store_address,store_phone,store_email,store_hours,store_closed_days,banner_url,staff_selection_enabled,table_count,max_party_size,store_open_time,store_close_time,updated_at) VALUES (${shopId},${s.store_name||""},${s.store_description||""},${s.store_address||""},${s.store_phone||""},${s.store_email||""},${s.store_hours||""},${s.store_closed_days||""},${s.banner_url||""},${s.staff_selection_enabled||"false"},${tc},${mp},${ot},${ct},NOW()) ON CONFLICT (shop_id) DO UPDATE SET store_name=${s.store_name||""},store_description=${s.store_description||""},store_address=${s.store_address||""},store_phone=${s.store_phone||""},store_email=${s.store_email||""},store_hours=${s.store_hours||""},store_closed_days=${s.store_closed_days||""},banner_url=${s.banner_url||""},staff_selection_enabled=${s.staff_selection_enabled||"false"},table_count=${tc},max_party_size=${mp},store_open_time=${ot},store_close_time=${ct},updated_at=NOW()`;
-          res.json(s);
-        } catch { res.status(500).json({message:"Failed to update settings"}); }
+          const s = req.body;
+          
+          // 1. まず現在のレコードが存在するか確認（なければ初期値で作成）
+          const exists = await sql`SELECT 1 FROM booking_settings WHERE shop_id = ${shopId}`;
+          
+          if (exists.length === 0) {
+            // まだデータがない場合は、すべての項目をデフォルト値付きでINSERT
+            await sql`
+              INSERT INTO booking_settings (
+                shop_id, store_name, store_description, store_address, store_phone,
+                store_email, store_hours, store_closed_days, banner_url,
+                staff_selection_enabled, table_count, max_party_size, updated_at
+              ) VALUES (
+                ${shopId}, ${s.store_name || ""}, ${s.store_description || ""}, ${s.store_address || ""},
+                ${s.store_phone || ""}, ${s.store_email || ""}, ${s.store_hours || ""},
+                ${s.store_closed_days || ""}, ${s.banner_url || ""}, ${s.staff_selection_enabled || "false"},
+                ${parseInt(s.table_count || "0", 10)}, ${parseInt(s.max_party_size || "0", 10)}, NOW()
+              )
+            `;
+          } else {
+            // 2. データがある場合は、送られてきた項目のみをUPDATE
+            // これなら、送られてこなかった項目は元の値が維持されます
+            if (s.store_name !== undefined) await sql`UPDATE booking_settings SET store_name = ${s.store_name} WHERE shop_id = ${shopId}`;
+            if (s.store_description !== undefined) await sql`UPDATE booking_settings SET store_description = ${s.store_description} WHERE shop_id = ${shopId}`;
+            if (s.store_address !== undefined) await sql`UPDATE booking_settings SET store_address = ${s.store_address} WHERE shop_id = ${shopId}`;
+            if (s.store_phone !== undefined) await sql`UPDATE booking_settings SET store_phone = ${s.store_phone} WHERE shop_id = ${shopId}`;
+            if (s.store_email !== undefined) await sql`UPDATE booking_settings SET store_email = ${s.store_email} WHERE shop_id = ${shopId}`;
+            if (s.store_hours !== undefined) await sql`UPDATE booking_settings SET store_hours = ${s.store_hours} WHERE shop_id = ${shopId}`;
+            if (s.store_closed_days !== undefined) await sql`UPDATE booking_settings SET store_closed_days = ${s.store_closed_days} WHERE shop_id = ${shopId}`;
+            if (s.banner_url !== undefined) await sql`UPDATE booking_settings SET banner_url = ${s.banner_url} WHERE shop_id = ${shopId}`;
+            if (s.staff_selection_enabled !== undefined) await sql`UPDATE booking_settings SET staff_selection_enabled = ${s.staff_selection_enabled} WHERE shop_id = ${shopId}`;
+            if (s.table_count !== undefined) await sql`UPDATE booking_settings SET table_count = ${parseInt(s.table_count, 10)} WHERE shop_id = ${shopId}`;
+            if (s.max_party_size !== undefined) await sql`UPDATE booking_settings SET max_party_size = ${parseInt(s.max_party_size, 10)} WHERE shop_id = ${shopId}`;
+            
+            await sql`UPDATE booking_settings SET updated_at = NOW() WHERE shop_id = ${shopId}`;
+          }
+
+          res.json({ message: "Success" });
+        } catch (err) {
+          console.error(err);
+          res.status(500).json({ message: "Failed to update settings" });
+        }
       });
 
       // ─── 予約 ───
       app.get("/api/shops/:shopId/reservations", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
-        try { res.json((await safeQuery(()=>sql`SELECT * FROM booking_reservations WHERE shop_id=${shopId} ORDER BY date DESC, time DESC`)).map(toReservation)); }
-        catch { res.status(500).json({message:"Failed to fetch reservations"}); }
-      });
-      app.post("/api/shops/:shopId/reservations", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId))
+          return res.status(400).json({ message: "Invalid shop ID" });
         try {
-          const {customerName,customerPhone,customerEmail,date,time,staffId,courseId}=req.body;
-          if (!customerName||!date||!time||!courseId) return res.status(400).json({message:"Missing required fields"});
-          const shopRows = await sql`SELECT enable_staff_assignment FROM shops WHERE id = ${shopId}`;
-          const enableStaffAssignment = shopRows[0]?.enable_staff_assignment || false;
-          if (enableStaffAssignment && !staffId) return res.status(400).json({message:"Staff selection is required"});
-          if (staffId) {
-            const dayOfWeek = new Date(date).getDay();
-            const slotRows = await sql`SELECT available FROM booking_slots WHERE shop_id = ${shopId} AND staff_id = ${staffId} AND day_of_week = ${dayOfWeek} AND time = ${time}`;
-            if (slotRows.length > 0 && !slotRows[0].available) return res.status(400).json({message:"Selected time slot is not available"});
-          }
-          const existing = await sql`SELECT COUNT(*) as cnt FROM booking_reservations WHERE shop_id = ${shopId} AND date = ${date} AND time = ${time} AND status != 'cancelled'`;
-          if (parseInt(existing[0]?.cnt || "0") > 0) return res.status(400).json({message:"Time slot already booked"});
-          const token=crypto.randomUUID().replace(/-/g,"");
-          await sql`INSERT INTO booking_reservations (shop_id,customer_name,customer_phone,customer_email,date,time,staff_id,course_id,status,paid,cancel_token) VALUES (${shopId},${customerName},${customerPhone||null},${customerEmail||null},${date},${time},${staffId||"__shop__"},${courseId.toString()},'confirmed',false,${token})`;
-          const rows=await sql`SELECT * FROM booking_reservations WHERE cancel_token = ${token}`;
-          if (!rows[0]) return res.status(500).json({message:"Failed to create reservation"});
-          res.status(201).json(toReservation(rows[0]));
-        } catch (e: any) { console.error("reservation error:", e); res.status(500).json({message:"Failed to create reservation"}); }
+          res.json(
+            (
+              await safeQuery(
+                () =>
+                  sql`SELECT * FROM booking_reservations WHERE shop_id=${shopId} ORDER BY date DESC, time DESC`,
+              )
+            ).map(toReservation),
+          );
+        } catch {
+          res.status(500).json({ message: "Failed to fetch reservations" });
+        }
       });
+
+
+      app.post("/api/shops/:shopId/reservations", async (req, res) => {
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId))
+          return res.status(400).json({ message: "Invalid shop ID" });
+        try {
+          const {
+            customerName,
+            customerPhone,
+            customerEmail,
+            customerNote,
+            date,
+            time,
+            staffId,
+            courseId,
+            status,
+            lineProfile
+          } = req.body;
+          if (!customerName || !courseId)
+            return res.status(400).json({ message: "Missing required fields" });
+          const token = crypto.randomUUID().replace(/-/g, "");
+          await sql`INSERT INTO booking_reservations (shop_id,customer_name,customer_phone,customer_email,customer_note,date,time,staff_id,course_id,status,paid,cancel_token) VALUES (${shopId},${customerName},${customerPhone || null},${customerEmail || null},${customerNote || null},${date},${time},${staffId || "__shop__"},${courseId.toString()},${status},false,${token})`;
+          const rows = await sql`SELECT * FROM booking_reservations WHERE cancel_token = ${token}`;
+          const newReservation = rows[0];
+          if (!newReservation)
+            return res
+              .status(500)
+              .json({ message: "Failed to create reservation" });
+          const sendMessageDataRecord =
+            await sql`SELECT s.name as shop_name, c.name as course_name,  bs.store_email as shop_email FROM booking_courses c JOIN shops s ON c.shop_id = s.id LEFT JOIN booking_settings bs ON s.id = bs.shop_id WHERE c.id = ${courseId}`;
+          const sendMessageData = {
+            "shop_id": shopId,
+            "shop_name": sendMessageDataRecord[0].shop_name,
+            "course_name": sendMessageDataRecord[0].course_name,
+            "shop_email": sendMessageDataRecord[0].shop_email,
+            "customer_email": customerEmail,
+            "date": date,
+            "time": time
+          }
+          if (lineProfile) {
+            const lineId = lineProfile.userId
+            // LINEからプロフィールが取れてれば予約完了MSGをLINEに送信
+            sendLineFlexMessage(lineId, sendMessageData, token).catch(console.error);
+          } else {
+            // そうでなければ予約時に入力したアドレスに送信（主にWEBからのアクセスを想定してます）
+            sendEmailMessage(sendMessageData, token).catch(console.error);
+          }
+          // 予約完了メールを店舗側に送信
+          sendEmailToStore(sendMessageData).catch(console.error);
+          res.status(201).json(toReservation(rows[0]));
+        } catch (e: any) {
+          console.error("reservation error:", e);
+          res.status(500).json({ message: "Failed to create reservation" });
+        }
+      });
+
+
       app.put("/api/shops/:shopId/reservations", async (req, res) => {
         const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
         try {
@@ -563,22 +1152,39 @@ export function ensureSetup(): Promise<void> {
           res.json(toReservation(rows[0]));
         } catch (e: any) { console.error("res update error:", e); res.status(500).json({message:"Failed to update reservation"}); }
       });
-      app.delete("/api/shops/:shopId/reservations", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
-        try { await sql`DELETE FROM booking_reservations WHERE id=${parseInt(req.query.id as string)} AND shop_id=${shopId}`; res.json({message:"Reservation deleted"}); }
-        catch { res.status(500).json({message:"Failed to delete reservation"}); }
-      });
 
       // ─── キャンセル ───
       app.get("/api/shops/:shopId/cancel/:token", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
+        const shopId = parseInt(req.params.shopId);
+        if (isNaN(shopId))
+          return res.status(400).json({ message: "Invalid shop ID" });
         try {
-          const cnt=await sql`SELECT COUNT(*) as cnt FROM booking_reservations WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
-          if (parseInt(cnt[0]?.cnt||"0")===0) return res.status(404).json({message:"Reservation not found"});
-          const rows=await sql`SELECT r.*, c.name as course_name, c.duration as course_duration, c.price as course_price FROM booking_reservations r LEFT JOIN booking_courses c ON c.id::text = r.course_id AND c.shop_id = ${shopId} WHERE r.cancel_token=${req.params.token} AND r.shop_id=${shopId}`;
-          if (!rows[0]) return res.status(404).json({message:"Reservation not found"});
-          const r=rows[0]; res.json({id:r.id.toString(),customerName:r.customer_name,date:r.date,time:r.time,courseId:r.course_id,courseName:r.course_name||"コース",courseDuration:r.course_duration||60,coursePrice:r.course_price||0,status:r.status});
-        } catch { res.status(500).json({message:"Failed to fetch reservation"}); }
+          const cnt =
+            await sql`SELECT COUNT(*) as cnt FROM booking_reservations WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
+          if (parseInt(cnt[0]?.cnt || "0") === 0)
+            return res.status(404).json({ message: "Reservation not found" });
+          const rows =
+            await sql`SELECT r.*, c.name as course_name, c.duration as course_duration, c.price as course_price, bs.cancel_limit_days as cancel_limit FROM booking_reservations r LEFT JOIN booking_courses c ON c.id::text = r.course_id AND c.shop_id = r.shop_id LEFT JOIN booking_settings bs ON r.shop_id = bs.shop_id WHERE r.cancel_token = ${req.params.token} AND r.shop_id = ${shopId};`;
+            // await sql`SELECT r.*, c.name as course_name, c.duration as course_duration, c.price as course_price FROM booking_reservations r LEFT JOIN booking_courses c ON c.id::text = r.course_id AND c.shop_id = ${shopId} WHERE r.cancel_token=${req.params.token} AND r.shop_id=${shopId}`;
+          
+            if (!rows[0])
+            return res.status(404).json({ message: "Reservation not found" });
+          const r = rows[0];
+          res.json({
+            id: r.id.toString(),
+            customerName: r.customer_name,
+            date: r.date,
+            time: r.time,
+            courseId: r.course_id,
+            courseName: r.course_name || "コース",
+            courseDuration: r.course_duration || 60,
+            coursePrice: r.course_price || 0,
+            status: r.status,
+            cancelLimit: r.cancel_limit
+          });
+        } catch {
+          res.status(500).json({ message: "Failed to fetch reservation" });
+        }
       });
       app.post("/api/shops/:shopId/cancel/:token", async (req, res) => {
         const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
@@ -702,6 +1308,23 @@ export function ensureSetup(): Promise<void> {
     })();
   }
   return _setup;
+}
+
+// if (process.env.NODE_ENV !== "production") {
+//   ensureSetup().then(() => httpServer.listen(5000));
+// }
+
+if (process.env.NODE_ENV !== "production") {
+  // 1. まずセットアップ（マイグレーションやAPI登録）を完了させる
+  ensureSetup().then(() => {
+    // 2. セットアップが終わってから、一度だけ listen する
+    const PORT = 5000;
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      console.log(`==== index.js ==== Server running on port ${PORT}`);
+    });
+  }).catch(err => {
+    console.error("Failed to start server:", err);
+  });
 }
 
 // Vercel serverless handler
