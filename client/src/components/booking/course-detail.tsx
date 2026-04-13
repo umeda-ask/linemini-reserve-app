@@ -12,11 +12,13 @@ interface CourseDetailProps {
 export function CourseDetail({ course, onBook }: CourseDetailProps) {
   return (
     <div className="flex flex-col" data-testid="booking-course-detail">
-      <div className="relative h-48 bg-gradient-to-br from-amber-50 to-orange-100">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-4xl font-bold text-amber-900/20">{course.category}</div>
-        </div>
+    {course.imageUrl && (
+      <div 
+        className="relative h-48 bg-cover bg-center rounded-t-lg border-b border-border bg-muted w-full" 
+        style={{ backgroundImage: `url(${course.imageUrl})` }}
+      >
       </div>
+    )}
 
       <div className="flex flex-col gap-4 px-4 py-5">
         <div>
