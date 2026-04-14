@@ -154,26 +154,7 @@ export function ensureSetup(): Promise<void> {
         await seedDatabase();
       }
 
-      // shop_menu_items テーブルの自動作成（Vercel含む全環境）
-        try {
-          await sql`
-            CREATE TABLE IF NOT EXISTS shop_menu_items (
-              id            SERIAL PRIMARY KEY,
-              shop_id       INTEGER NOT NULL,
-              name          TEXT NOT NULL,
-              price         INTEGER NOT NULL DEFAULT 0,
-              comment       TEXT NOT NULL DEFAULT '',
-              image_url     TEXT,
-              is_visible    BOOLEAN NOT NULL DEFAULT TRUE,
-              display_order INTEGER NOT NULL DEFAULT 0,
-              created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            )
-          `;
-        } catch (e: any) {
-          console.warn("shop_menu_items table warning:", e.message?.substring(0, 80));
-        }
-
-        // 静的ファイル
+      // 静的ファイル
         app.use("/uploads", express.static(uploadsDir, { setHeaders: (res) => res.setHeader("X-Content-Type-Options", "nosniff") }));
       app.post("/api/upload", upload.single("image"), (req, res) => {
         if (!req.file) return res.status(400).json({ message: "No image file provided" });

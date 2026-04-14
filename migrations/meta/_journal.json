@@ -15,6 +15,13 @@
       "when": 1775793391284,
       "tag": "0001_neat_kylun",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776146879918,
+      "tag": "0002_shop_menu_items",
+      "breakpoints": true
     }
   ]
 }
