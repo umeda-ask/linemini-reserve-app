@@ -672,7 +672,65 @@ export function ensureSetup(): Promise<void> {
         } catch { res.status(500).json({ message: "Failed to delete coupon" }); }
       });
 
-      // ─── 認証 ───
+      // ─── メニューアイテム ───
+        app.get("/api/shops/:shopId/menu-items", async (req, res) => {
+          const shopId = parseInt(req.params.shopId);
+          if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+          try {
+            const adminOnly = req.query.all === "true";
+            const rows = adminOnly
+              ? await sql`SELECT * FROM shop_menu_items WHERE shop_id = ${shopId} ORDER BY display_order, id`
+              : await sql`SELECT * FROM shop_menu_items WHERE shop_id = ${shopId} AND is_visible = true ORDER BY display_order, id`;
+            res.json(rows);
+          } catch { res.status(500).json({ message: "Failed to fetch menu items" }); }
+        });
+
+        app.post("/api/shops/:shopId/menu-items", async (req, res) => {
+          const shopId = parseInt(req.params.shopId);
+          if (isNaN(shopId)) return res.status(400).json({ message: "Invalid shop ID" });
+          const { name, price, comment, imageUrl, isVisible, displayOrder } = req.body;
+          if (!name) return res.status(400).json({ message: "Name is required" });
+          try {
+            const rows = await sql`
+              INSERT INTO shop_menu_items (shop_id, name, price, comment, image_url, is_visible, display_order)
+              VALUES (${shopId}, ${name}, ${price ?? 0}, ${comment ?? ""}, ${imageUrl ?? null}, ${isVisible ?? true}, ${displayOrder ?? 0})
+              RETURNING *`;
+            res.json(rows[0]);
+          } catch { res.status(500).json({ message: "Failed to create menu item" }); }
+        });
+
+        app.put("/api/shops/:shopId/menu-items/:id", async (req, res) => {
+          const id = parseInt(req.params.id);
+          const shopId = parseInt(req.params.shopId);
+          if (isNaN(id) || isNaN(shopId)) return res.status(400).json({ message: "Invalid ID" });
+          const { name, price, comment, imageUrl, isVisible, displayOrder } = req.body;
+          try {
+            const rows = await sql`
+              UPDATE shop_menu_items SET
+                name          = COALESCE(${name          ?? null}, name),
+                price         = COALESCE(${price         ?? null}, price),
+                comment       = COALESCE(${comment       ?? null}, comment),
+                image_url     = ${imageUrl !== undefined ? imageUrl : null},
+                is_visible    = COALESCE(${isVisible     ?? null}, is_visible),
+                display_order = COALESCE(${displayOrder  ?? null}, display_order)
+              WHERE id = ${id} AND shop_id = ${shopId}
+              RETURNING *`;
+            if (!rows[0]) return res.status(404).json({ message: "Not found" });
+            res.json(rows[0]);
+          } catch { res.status(500).json({ message: "Failed to update menu item" }); }
+        });
+
+        app.delete("/api/shops/:shopId/menu-items/:id", async (req, res) => {
+          const id = parseInt(req.params.id);
+          const shopId = parseInt(req.params.shopId);
+          if (isNaN(id) || isNaN(shopId)) return res.status(400).json({ message: "Invalid ID" });
+          try {
+            await sql`DELETE FROM shop_menu_items WHERE id = ${id} AND shop_id = ${shopId}`;
+            res.json({ message: "Deleted" });
+          } catch { res.status(500).json({ message: "Failed to delete menu item" }); }
+        });
+
+        // ─── 認証 ───
       app.post("/api/auth/login", async (req, res) => {
         try {
           const { username, password } = req.body;
