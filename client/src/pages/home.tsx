@@ -35,6 +35,7 @@ import type { Shop, Coupon } from "@shared/schema";
 import { getCategoryName, getAreaName, isRecentlyUpdated, sortByUpdatedAt } from "@/lib/data";
 import KanagawaMap from "@/components/kanagawa-map";
 import { useFavorites } from "@/hooks/use-favorites";
+import liff from '@line/liff';
 
 const categoryIcons: Record<string, any> = {
   gourmet: UtensilsCrossed,
@@ -647,6 +648,29 @@ export default function HomePage() {
     queryKey: ["/api/coupons"],
   });
 
+  // LINEID取得のロジック
+  // ※必要に応じてコメントアウト解除してください（ローカル環境だとうまく動かない為）
+
+  // localStorage.removeItem("liff_profile");
+  // if (!isWeb) {
+    
+  //   useEffect(() => {
+  //       const initLiff = async () => {
+  //         try {
+  //           await liff.init({ liffId: "2009341857-tmEtN0SB" });
+  //           if (!liff.isLoggedIn()) {
+  //             liff.login();
+  //           } else {
+  //             const userProfile = await liff.getProfile();
+  //             localStorage.setItem("liff_profile", JSON.stringify(userProfile));
+  //           }
+  //         } catch (err) {
+  //           console.error("LIFF失敗", err);
+  //         }
+  //       };
+  //       initLiff();
+  //     }, []);
+  // }
 
   const handleSearch = (area: string, category: string, keyword: string) => {
     const params = new URLSearchParams();

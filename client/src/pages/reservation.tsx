@@ -16,6 +16,7 @@ import { BookingComplete } from "@/components/booking/booking-complete";
 import { createReservation, fetchSettings, SHOP_STAFF_ID, type Course, type Staff } from "@/lib/booking-api";
 
 type Step = "course" | "course-detail" | "staff" | "datetime" | "confirm" | "complete";
+type BookingMode = "normal" | "request";
 
 const STEP_TITLES: Record<Step, string> = {
   course: "コース一覧",
@@ -31,11 +32,14 @@ export default function ReservationPage() {
   const shopId = parseInt(params.id || "0");
   const [, navigate] = useLocation();
   const basePath = useBasePath();
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialMode = searchParams.get("mode") === "request" ? "request" : "normal";
 
   const { data: shop, isLoading } = useQuery<Shop>({
     queryKey: ["/api/shops", params.id],
   });
 
+  const [bookingMode, setBookingMode] = useState<BookingMode>(initialMode);
   const [step, setStep] = useState<Step>("course");
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
@@ -45,14 +49,24 @@ export default function ReservationPage() {
   const [maxPartySize, setMaxPartySize] = useState(20);
   const [reservationId, setReservationId] = useState<string | null>(null);
   const [reservationToken, setReservationToken] = useState<string | null>(null);
+  const [category, setCategory] = useState<string>("");
 
   useEffect(() => {
     if (!shopId) return;
-    fetchSettings(shopId).then((s) => {
-      setStaffSelectionEnabled(s.staff_selection_enabled === "true");
-      if (s.max_party_size) setMaxPartySize(parseInt(s.max_party_size, 10));
-    }).catch(() => {});
+    fetchSettings(shopId)
+      .then((s) => {
+        setStaffSelectionEnabled(s.staff_selection_enabled === "true");
+        if (s.max_party_size) setMaxPartySize(parseInt(s.max_party_size, 10));
+        setCategory(s.shop_category ?? "");
+      })
+      .catch(() => {});
   }, [shopId]);
+
+  const [profile] = useState<any>(() => {
+      const saved = localStorage.getItem("liff_profile");
+      return saved ? JSON.parse(saved) : null;
+    });
+
 
   const handleBack = () => {
     switch (step) {
@@ -149,6 +163,7 @@ export default function ReservationPage() {
             shopId={shopId}
             stripeConnectId={shop.stripeConnectId}
             stripeConnectStatus={shop.stripeConnectStatus}
+            bookingMode={bookingMode}
             onSelect={(course) => {
               setSelectedCourse(course);
               setStep("course-detail");
@@ -160,11 +175,18 @@ export default function ReservationPage() {
             shopId={shopId}
             course={selectedCourse}
             onBook={() => {
-              if (staffSelectionEnabled) {
-                setStep("staff");
-              } else {
+              if (bookingMode === "request") {
                 setSelectedStaff(null);
-                setStep("datetime");
+                setSelectedDate(""); // 空文字または特定の値を検討
+                setSelectedTime("");
+                setStep("confirm");
+              } else {
+                if (staffSelectionEnabled) {
+                  setStep("staff");
+                } else {
+                  setSelectedStaff(null);
+                  setStep("datetime");
+                }
               }
             }}
           />
@@ -200,25 +222,39 @@ export default function ReservationPage() {
             time={selectedTime}
             maxPartySize={maxPartySize}
             staffSelectionEnabled={staffSelectionEnabled}
-            onConfirm={async ({ customerName, customerEmail, customerPhone, partySize }) => {
+            category={category}
+            bookingMode={bookingMode}
+            onConfirm={async ({ customerName, customerEmail, customerPhone, partySize, customerNote }) => {
+              const isRequest = bookingMode === "request";
               const res = await createReservation(shopId, {
                 customerName,
                 customerEmail,
                 customerPhone,
+                customerNote,
                 date: selectedDate,
                 time: selectedTime,
                 staffId: selectedStaff?.id || SHOP_STAFF_ID,
                 courseId: selectedCourse!.id,
-                status: "confirmed",
-                paid: selectedCourse!.prepaymentOnly,
+                // status: "confirmed",
+                // paid: selectedCourse!.prepaymentOnly,
+                status: isRequest ? "pending" : "confirmed",
+                paid: isRequest ? false : selectedCourse!.prepaymentOnly,
+                bookingMode: bookingMode,
                 partySize,
+                lineProfile:profile
               });
               const result = res as { id: string; reservationToken: string };
               setReservationId(result.id);
               setReservationToken(result.reservationToken);
               setStep("complete");
             }}
-            onBack={() => setStep("datetime")}
+            onBack={() => {
+              if (bookingMode === "request") {
+                setStep("course-detail");
+              } else {
+                setStep("datetime");
+              }
+            }}
           />
         )}
         {step === "complete" && selectedCourse && (
@@ -230,6 +266,7 @@ export default function ReservationPage() {
             time={selectedTime}
             reservationId={reservationId}
             reservationToken={reservationToken}
+            bookingMode={bookingMode}
             onClose={() => navigate(`${basePath}/shop/${shop.id}`)}
           />
         )}

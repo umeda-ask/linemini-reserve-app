@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Calendar, Clock, User, UserCircle, CreditCard, Loader2, Mail, Phone } from "lucide-react";
+import { Calendar, Clock, User, UserCircle, CreditCard, Loader2, Mail, Phone, FileText } from "lucide-react";
 import { formatPrice, formatDuration, type Course, type Staff } from "@/lib/booking-api";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -23,7 +24,9 @@ interface PaymentConfirmProps {
   time: string;
   maxPartySize?: number;
   staffSelectionEnabled?: boolean;
-  onConfirm: (info: { customerName: string; customerEmail: string; customerPhone: string; partySize?: number }) => void;
+  category: string;
+  bookingMode?: "normal" | "request";
+  onConfirm: (info: { customerName: string; customerEmail: string; customerPhone: string; partySize?: number, customerNote: string }) => void;
   onBack: () => void;
 }
 
@@ -183,14 +186,18 @@ export function PaymentConfirm({
   time,
   maxPartySize = 20,
   staffSelectionEnabled = false,
+  category,
+  bookingMode = "normal",
   onConfirm,
   onBack,
 }: PaymentConfirmProps) {
-  const parsedDate = parseISO(date);
+  // const parsedDate = parseISO(date);
+  const parsedDate = date ? parseISO(date) : null;
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [partySize, setPartySize] = useState(1);
+  const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string }>({});
   const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(null);
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -222,13 +229,21 @@ export function PaymentConfirm({
       customerEmail: customerEmail.trim(),
       customerPhone: customerPhone.trim(),
       partySize: showPartySize ? partySize : undefined,
+      customerNote: notes.trim(),
+      bookingMode: bookingMode
     };
-    if (!needsPayment) {
+    if (!needsPayment || bookingMode === "request") {
       onConfirm(info);
     } else {
       setFormSubmitted(true);
     }
   };
+
+  // 人数表示対象のカテゴリか
+  const targetCategory = ["gourmet"].includes(category);
+
+  // 人数を表示させるか否か
+  const isPartySizeVisible = showPartySize && targetCategory;
 
   const bookingInfo = (
     <div className="flex flex-col gap-0 divide-y divide-border bg-card">
@@ -237,7 +252,11 @@ export function PaymentConfirm({
         <div>
           <div className="text-xs text-muted-foreground">日時</div>
           <div className="text-sm font-bold text-foreground" data-testid="text-confirm-datetime">
-            {format(parsedDate, "yyyy年M月d日(E)", { locale: ja })} {time}
+          {bookingMode === "request" ? (
+            "店舗と相談して決定"
+          ) : (
+            parsedDate ? `${format(parsedDate, "yyyy年M月d日(E)", { locale: ja })} ${time}` : "日時未設定"
+          )}
           </div>
         </div>
       </div>
@@ -258,7 +277,7 @@ export function PaymentConfirm({
           <div className="mt-0.5 text-xs text-muted-foreground">{formatDuration(course.duration)}</div>
         </div>
       </div>
-      {showPartySize && (
+      {isPartySizeVisible && (
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-sm text-muted-foreground">人数</span>
           <span className="text-sm font-bold text-foreground" data-testid="text-confirm-party-size">{partySize}名</span>
@@ -303,6 +322,7 @@ export function PaymentConfirm({
               customerEmail: customerEmail.trim(),
               customerPhone: customerPhone.trim(),
               partySize: showPartySize ? partySize : undefined,
+              customerNote: notes.trim(),
             })}
             onBack={() => setFormSubmitted(false)}
           >
@@ -373,7 +393,7 @@ export function PaymentConfirm({
           {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
         </div>
 
-        {showPartySize && (
+        {isPartySizeVisible && (
           <div className="space-y-1.5">
             <Label className="flex items-center gap-1.5 text-xs font-medium">
               <User className="h-3.5 w-3.5" />
@@ -394,6 +414,21 @@ export function PaymentConfirm({
             </Select>
           </div>
         )}
+        <div className="space-y-1.5">
+          <Label htmlFor="notes" className="flex items-center gap-1.5 text-xs font-medium">
+            <FileText className="h-3.5 w-3.5" />
+            備考
+          </Label>
+          <Textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="アレルギーや、特別なご要望があればご記入ください"
+            className="resize-none text-sm"
+            rows={3}
+            data-testid="input-notes"
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 border-t border-border bg-card px-4 py-4">

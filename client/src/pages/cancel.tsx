@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { fetchCancelInfo, executeCancelByToken, formatPrice, formatDuration, type CancelInfo } from "@/lib/booking-api";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
+import dayjs from 'dayjs';
 
 export default function CancelPage() {
   const params = useParams<{ shopId: string; token: string }>();
@@ -75,7 +76,17 @@ export default function CancelPage() {
     );
   }
 
-  const parsedDate = parseISO(info.date);
+  // const parsedDate = parseISO(info.date);
+  const parsedDate = info?.date ? parseISO(info.date) : null;
+
+  const startAt = info.date
+  const limit = info.cancelLimit
+
+  // const deadline = dayjs(startAt).startOf('day').subtract(limit, 'day');
+  // const isTooLate = dayjs().isAfter(deadline);
+  const isTooLate = startAt 
+    ? dayjs().isAfter(dayjs(startAt).startOf('day').subtract(limit, 'day'))
+    : false;
 
   if (cancelled) {
     return (
@@ -94,7 +105,11 @@ export default function CancelPage() {
             <div className="flex items-center gap-2 text-sm">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">
-                {format(parsedDate, "yyyy年M月d日(E)", { locale: ja })} {info.time}
+                {parsedDate ? (
+                  `${format(parsedDate, "yyyy年M月d日(E)", { locale: ja })} ${info.time || ""}`
+                ) : (
+                  "日時指定なし（リクエスト予約）"
+                )}
               </span>
             </div>
             <div className="mt-2 flex items-center gap-2 text-sm">
@@ -116,14 +131,31 @@ export default function CancelPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <Card className="max-w-sm w-full overflow-hidden" data-testid="cancel-confirm">
-        <div className="bg-destructive/5 px-6 py-6 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
-            <AlertTriangle className="h-7 w-7 text-destructive" />
+        <div className={`px-6 py-6 text-center ${isTooLate ? "bg-amber-50" : "bg-destructive/5"}`}>
+          <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${isTooLate ? "bg-amber-100" : "bg-destructive/10"}`}>
+            {isTooLate ? (
+              <AlertTriangle className="h-7 w-7 text-amber-600" />
+            ) : (
+              <AlertTriangle className="h-7 w-7 text-destructive" />
+            )}
           </div>
-          <h2 className="mt-4 text-lg font-bold">予約をキャンセルしますか？</h2>
+
+          <h2 className="mt-4 text-lg font-bold">
+            {isTooLate ? "キャンセル期限を過ぎています" : "予約をキャンセルしますか？"}
+          </h2>
+
           <p className="mt-1 text-sm text-muted-foreground">
-            以下の予約をキャンセルします
+            {isTooLate 
+              ? `予約キャンセル期限を過ぎているため、こちらからはキャンセルできません。`
+              : "以下の予約をキャンセルします"
+            }
           </p>
+
+          {isTooLate && (
+            <p className="mt-4 text-sm font-medium text-amber-700">
+              お手数ですが、店舗へ直接お電話でご連絡ください。
+            </p>
+          )}
         </div>
 
         <div className="divide-y">
@@ -132,7 +164,11 @@ export default function CancelPage() {
             <div>
               <div className="text-xs text-muted-foreground">日時</div>
               <div className="text-sm font-bold" data-testid="text-cancel-datetime">
-                {format(parsedDate, "yyyy年M月d日(E)", { locale: ja })} {info.time}
+                {parsedDate ? (
+                  `${format(parsedDate, "yyyy年M月d日(E)", { locale: ja })} ${info.time || ""}`
+                ) : (
+                  "日時指定なし（リクエスト予約）"
+                )}
               </div>
             </div>
           </div>
@@ -158,15 +194,17 @@ export default function CancelPage() {
         </div>
 
         <div className="flex flex-col gap-2 px-6 py-6">
-          <Button
-            variant="destructive"
-            onClick={handleCancel}
-            disabled={cancelling}
-            className="w-full py-6 text-sm font-bold"
-            data-testid="button-execute-cancel"
-          >
-            {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : "キャンセルする"}
-          </Button>
+          { !isTooLate && (
+            <Button
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="w-full py-6 text-sm font-bold"
+              data-testid="button-execute-cancel"
+            >
+              {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : "キャンセルを確定する"}
+            </Button>
+          )}
           <Link href={basePath}>
             <Button variant="outline" className="w-full py-5 text-sm" data-testid="button-cancel-back">
               戻る

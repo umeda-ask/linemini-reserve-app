@@ -148,19 +148,21 @@ export const bookingStaff = pgTable("booking_staff", {
 // 予約：コース
 // ─────────────────────────────
 export const bookingCourses = pgTable("booking_courses", {
-  id:             serial("id").primaryKey(),
-  shopId:         integer("shop_id").notNull(),
-  name:           text("name").notNull(),
-  category:       text("category").default(""),
-  duration:       integer("duration").default(60),
-  price:          integer("price").default(0),
-  description:    text("description").default(""),
-  prepaymentOnly: boolean("prepayment_only").default(false),
-  imageUrl:       text("image_url"),
-  staffIds:       text("staff_ids").array().default([]),
-  isActive:       boolean("is_active").default(true),
-  createdAt:      timestamp("created_at").defaultNow(),
-  updatedAt:      timestamp("updated_at").defaultNow(),
+  id:                serial("id").primaryKey(),
+  shopId:            integer("shop_id").notNull(),
+  name:              text("name").notNull(),
+  category:          text("category").default(""),
+  duration:          integer("duration").default(60),
+  price:             integer("price").default(0),
+  description:       text("description").default(""),
+  prepaymentOnly:    boolean("prepayment_only").default(false),
+  // 日付、時間指定なしを許容するか
+  enableRequestMode: boolean("enable_request_mode").default(false),
+  imageUrl:          text("image_url"),
+  staffIds:          text("staff_ids").array().default([]),
+  isActive:          boolean("is_active").default(true),
+  createdAt:         timestamp("created_at").defaultNow(),
+  updatedAt:         timestamp("updated_at").defaultNow(),
 });
 
 // ─────────────────────────────
@@ -172,8 +174,11 @@ export const bookingReservations = pgTable("booking_reservations", {
   customerName:  text("customer_name").notNull(),
   customerPhone: text("customer_phone"),
   customerEmail: text("customer_email"),
-  date:          text("date").notNull(),
-  time:          text("time").notNull(),
+  // 備考カラム追加
+  customerNote:  text("customer_note"),
+  // 日時指定の予約を許容するためdateとtimeのnotnullは削除
+  date:          text("date"),
+  time:          text("time"),
   staffId:       text("staff_id").default("__shop__"),
   courseId:      text("course_id").notNull(),
   status:        text("status").default("confirmed"),
@@ -199,6 +204,8 @@ export const bookingSettings = pgTable("booking_settings", {
   bannerUrl:            text("banner_url").default(""),
   staffSelectionEnabled: text("staff_selection_enabled").default("false"),
   tableCount:           integer("table_count").default(0),
+  // キャンセル期限カラム追加（一律で１日前とするため、default値は1）
+  cancelLimitDays:      integer("cancel_limit_days").default(1),
   maxPartySize:         integer("max_party_size").default(0),
   storeOpenTime:        text("store_open_time").default("10:00"),
   storeCloseTime:       text("store_close_time").default("19:00"),

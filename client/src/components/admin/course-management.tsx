@@ -29,6 +29,7 @@ export function CourseManagement({ shopId }: { shopId: number }) {
   const [formPrice, setFormPrice] = useState(0);
   const [formDescription, setFormDescription] = useState("");
   const [formPrepayment, setFormPrepayment] = useState(false);
+  const [formUnspecifiedTime, setFormUnspecifiedTime] = useState(false);
   const [formStaffIds, setFormStaffIds] = useState<string[]>([]);
   const [formImageUrl, setFormImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -51,6 +52,7 @@ export function CourseManagement({ shopId }: { shopId: number }) {
     setFormPrice(0);
     setFormDescription("");
     setFormPrepayment(false);
+    setFormUnspecifiedTime(false);
     setFormStaffIds([]);
     setFormImageUrl(null);
     setDialogOpen(true);
@@ -64,6 +66,7 @@ export function CourseManagement({ shopId }: { shopId: number }) {
     setFormPrice(course.price);
     setFormDescription(course.description);
     setFormPrepayment(course.prepaymentOnly);
+    setFormUnspecifiedTime(course.enableRequestMode);
     setFormStaffIds(course.staffIds);
     setFormImageUrl(course.imageUrl);
     setDialogOpen(true);
@@ -96,6 +99,7 @@ export function CourseManagement({ shopId }: { shopId: number }) {
       price: formPrice,
       description: formDescription,
       prepaymentOnly: formPrepayment,
+      enableRequestMode: formUnspecifiedTime,
       staffIds: formStaffIds,
       imageUrl: formImageUrl,
     };
@@ -273,6 +277,16 @@ export function CourseManagement({ shopId }: { shopId: number }) {
                 <div className="text-xs text-muted-foreground">ONにすると予約時にオンライン決済が必須になります</div>
               </div>
               <Switch checked={formPrepayment} onCheckedChange={setFormPrepayment} data-testid="switch-prepayment" />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div>
+                <div className="text-sm font-medium text-foreground">日付・時間指定なし予約を許可する</div>
+                <div className="text-xs text-muted-foreground">
+                  ONにするとお客様より予約リクエストが届きます。<br />
+                  お客様にご連絡いただき、店舗様側で予約調整を行ってください。
+                </div>
+              </div>
+              <Switch checked={formUnspecifiedTime} onCheckedChange={setFormUnspecifiedTime} data-testid="switch-prepayment" />
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-foreground">担当スタッフ</label>
