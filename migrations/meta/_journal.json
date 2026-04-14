@@ -17,6 +17,20 @@
       "breakpoints": true
     },
     {
+      "idx": 2,
+      "version": "7",
+      "when": 1776064477138,
+      "tag": "0002_right_harpoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776072165686,
+      "tag": "0003_oval_satana",
+      "breakpoints": true
+    },
+    {
       "idx": 3,
       "version": "7",
       "when": 1776147371570,
