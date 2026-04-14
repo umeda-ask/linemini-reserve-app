@@ -87,6 +87,15 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
 
   const updateShopMutation = useMutation({
     mutationFn: async () => {
+      const settings = await apiRequest("GET", `/api/shops/${shop.id}/settings`);
+      const settingsData = await settings.json();
+      if (reservationEnabled) {
+        if (!settingsData.table_count || !settingsData.max_party_size) {
+          throw new Error("TABLE_NOT_CONFIGURED");
+        } else if (!settingsData.store_email) {
+          throw new Error("EMAIL_NOT_CONFIGURED");
+        }
+      }
       await apiRequest("PUT", `/api/shops/${shop.id}`, {
         displayOrder: parseInt(displayOrder) || 0,
         lineAccountUrl: lineAccountUrl || null,
@@ -98,8 +107,24 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
       queryClient.invalidateQueries({ queryKey: ["/api/shops"] });
       toast({ title: "店舗情報を更新しました" });
     },
-    onError: () => {
-      toast({ title: "更新に失敗しました", variant: "destructive" });
+    onError: (err: any) => {
+      if (err.message === "TABLE_NOT_CONFIGURED") {
+        setReservationEnabled(false);
+        toast({ 
+          title: "予約機能を有効にできません（予約設定未）", 
+          description: "予約設定タブより上限卓数と上限人数を設定後、再度お試しください。",
+          variant: "destructive" 
+        });
+      } else if (err.message === "EMAIL_NOT_CONFIGURED") {
+        setReservationEnabled(false);
+        toast({ 
+          title: "予約機能を有効にできません（メールアドレス未登録）", 
+          description: "店舗管理タブより店舗のメールアドレスを登録後、再度お試しください。",
+          variant: "destructive" 
+        });
+      } else {
+        toast({ title: "更新に失敗しました", variant: "destructive" });
+      }
     },
   });
 

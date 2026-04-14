@@ -25,9 +25,11 @@ import {
   CalendarX2,
   CheckCircle,
   ThumbsUp,
+  MessageCircle
 } from "lucide-react";
 import { SiLine } from "react-icons/si";
 import type { Shop, Coupon } from "@shared/schema";
+import { type Course } from "@/lib/booking-api";
 import { getAreaName, getCategoryName, isRecentlyUpdated } from "@/lib/data";
 import { useFavorites } from "@/hooks/use-favorites";
 import { useCoupons } from "@/hooks/use-coupons";
@@ -192,6 +194,18 @@ export default function DetailPage() {
     },
     enabled: !!params.id,
   });
+
+  const { data: courses = [] } = useQuery<Course[]>({
+    queryKey: ["/api/shops", params.id, "courses"],
+    queryFn: async () => {
+      const res = await fetch(`/api/shops/${params.id}/courses`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!params.id,
+  });
+
+  const hasRequestCourse = courses.some(c => c.enableRequestMode);
 
   const { isFavorite, toggleFavorite } = useFavorites();
   const { acquireCoupon, isAcquired } = useCoupons();
@@ -366,15 +380,32 @@ export default function DetailPage() {
           </Card>
 
           {reservationPath && (
-            <Button
-              className="w-full bg-primary text-primary-foreground font-bold py-6 text-base"
-              asChild
-            >
-              <Link href={reservationPath} data-testid="link-reservation-mid">
-                <CalendarCheck className="w-5 h-5 mr-2" />
-                予約する
-              </Link>
-            </Button>
+            <div className="flex flex-col gap-3">
+              {/* 「予約する」ボタン */}
+              <Button
+                className="w-full bg-primary text-primary-foreground font-bold py-6 text-base"
+                asChild
+              >
+                <Link href={reservationPath} data-testid="link-reservation-mid">
+                  <CalendarCheck className="w-5 h-5 mr-2" />
+                  予約する
+                </Link>
+              </Button>
+
+              {/*「日時を選択せず予約」ボタン（フラグがある場合のみ）*/}
+              {hasRequestCourse && (
+                <Button
+                  variant="outline"
+                  className="w-full border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 font-bold py-6 text-base"
+                  asChild
+                >
+                  <Link href={`${reservationPath}?mode=request`} data-testid="link-reservation-request">
+                    <MessageCircle className="w-5 h-5 mr-2" />
+                    日時を選択せず予約（リクエスト）
+                  </Link>
+                </Button>
+              )}
+            </div>
           )}
 
           <Card className="overflow-visible p-5">

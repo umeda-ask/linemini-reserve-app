@@ -12,11 +12,14 @@ interface BookingCompleteProps {
   time: string;
   reservationId: string | null;
   reservationToken: string | null;
+  bookingMode?: "normal" | "request";
   onClose: () => void;
 }
 
-export function BookingComplete({ shopId, course, staff, date, time, reservationToken, onClose }: BookingCompleteProps) {
-  const parsedDate = parseISO(date);
+export function BookingComplete({ shopId, course, staff, date, time, reservationToken, onClose, bookingMode = "normal" }: BookingCompleteProps) {
+  // const parsedDate = parseISO(date);
+  const parsedDate = date ? parseISO(date) : null;
+  const isRequest = bookingMode === "request";
   const cancelUrl = reservationToken
     ? `${window.location.origin}/app/cancel/${shopId}/${reservationToken}`
     : null;
@@ -27,9 +30,11 @@ export function BookingComplete({ shopId, course, staff, date, time, reservation
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#06C755]">
           <Check className="h-8 w-8 text-white" strokeWidth={3} />
         </div>
-        <h2 className="mt-4 text-lg font-bold text-foreground" data-testid="text-booking-complete">予約が完了しました</h2>
+        <h2 className="mt-4 text-lg font-bold text-foreground" data-testid="text-booking-complete">
+          {isRequest ? "予約リクエストを送信しました" : "予約が完了しました"}
+        </h2>
         <p className="mt-1 text-center text-xs text-muted-foreground">
-          ご予約ありがとうございます。
+          {isRequest ? "店舗よりご連絡させていただきます" : "ご予約ありがとうございます。"}
         </p>
       </div>
 
@@ -43,11 +48,15 @@ export function BookingComplete({ shopId, course, staff, date, time, reservation
             <div>
               <div className="text-xs text-muted-foreground">日時</div>
               <div className="text-sm font-bold text-foreground">
-                {format(parsedDate, "yyyy年M月d日(E)", { locale: ja })} {time}
+                {isRequest || !parsedDate ? (
+                  "日時指定なし"
+                ) : (
+                  `${format(parsedDate, "yyyy年M月d日(E)", { locale: ja })} ${time}`
+                )}
               </div>
             </div>
           </div>
-          {staff && (
+          {!isRequest && staff && (
             <div className="flex items-start gap-3 px-4 py-3">
               <User className="mt-0.5 h-4 w-4 shrink-0 text-[#06C755]" />
               <div>

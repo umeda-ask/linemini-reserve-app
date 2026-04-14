@@ -11,6 +11,7 @@ interface CourseSelectProps {
   stripeConnectId?: string | null;
   stripeConnectStatus?: string | null;
   onSelect: (course: Course) => void;
+  bookingMode?: "normal" | "request";
 }
 
 type MenuItem = {
@@ -25,14 +26,12 @@ type MenuItem = {
 
   type Tab = "courses" | "menu" | "store-info";
 
-export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onSelect }: CourseSelectProps) {
+export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onSelect, bookingMode = "normal" }: CourseSelectProps) {
   const stripeActive = !!(stripeConnectId && stripeConnectStatus === "active");
   const [activeTab, setActiveTab] = useState<Tab>("courses");
   const [courses, setCourses] = useState<Course[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [storeName, setStoreName] = useState("Beaute Salon");
-  const [storeDescription, setStoreDescription] = useState("あなたの美しさを引き出す");
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
 
   const [showForm, setShowForm] = useState(false);
@@ -53,8 +52,6 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
         setCourses(c);
         setSettings(s);
         setMenuItems(m || []);
-        if (s.store_name) setStoreName(s.store_name);
-        if (s.store_description) setStoreDescription(s.store_description);
         setLoading(false);
       });
     }, [shopId]);
@@ -72,6 +69,13 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
     setSent(true);
   };
 
+  const displayCourses = courses.filter((c) => {
+      if (bookingMode === "request") {
+        return c.enableRequestMode === true;
+      }
+      return true;
+    });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -80,17 +84,11 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
     );
   }
 
+  // 削除予定
   const categories = [...new Set(courses.map((c) => c.category))];
 
   return (
     <div className="flex flex-col" data-testid="booking-course-select">
-      <div className="relative h-36 bg-gradient-to-br from-amber-50 to-orange-100">
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="mb-1 text-xs tracking-widest text-amber-700">ESTHETIC SALON</div>
-          <h1 className="text-xl font-bold text-amber-900">{storeName}</h1>
-          <p className="mt-1 text-xs text-amber-700">{storeDescription}</p>
-        </div>
-      </div>
 
       <div className="flex border-b border-border bg-card">
         <button
@@ -146,7 +144,7 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
                 <h2 className="text-sm font-bold text-foreground">{category}</h2>
               </div>
               <div className="flex flex-col divide-y divide-border">
-                {courses.filter((c) => c.category === category).map((course) => {
+                {displayCourses.filter((c) => c.category === category).map((course) => {
                   const disabled = course.prepaymentOnly && !stripeActive;
                   return (
                     <button
@@ -226,7 +224,7 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
           </div>
         )}
 
-        {activeTab === "store-info" && settings && (
+              {activeTab === "store-info" && settings && (
         <>
           {sent ? (
             <div className="flex flex-col items-center justify-center gap-4 px-6 py-16">
@@ -289,7 +287,7 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
                 </div>
               </div>
 
-              <div className="bg-muted px-4 py-2.5">
+              {/* <div className="bg-muted px-4 py-2.5">
                 <h2 className="text-sm font-bold text-foreground">お問い合わせ</h2>
               </div>
 
@@ -332,7 +330,7 @@ export function CourseSelect({ shopId, stripeConnectId, stripeConnectStatus, onS
                     送信する
                   </Button>
                 </div>
-              )}
+              )} */}
             </>
           )}
         </>

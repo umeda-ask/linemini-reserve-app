@@ -17,10 +17,10 @@
       "breakpoints": true
     },
     {
-      "idx": 2,
+      "idx": 3,
       "version": "7",
-      "when": 1776146879918,
-      "tag": "0002_shop_menu_items",
+      "when": 1776147371570,
+      "tag": "0003_shop_menu_items",
       "breakpoints": true
     }
   ]
