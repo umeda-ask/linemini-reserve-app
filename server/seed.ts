@@ -473,7 +473,7 @@ export async function seedDatabase() {
       }
     }
     await db.execute(
-      sql`UPDATE shops SET "reservation_url" = CONCAT('app/reservation/', id::text) WHERE "reservation_url" IS NULL`
+      sql`UPDATE shops SET "reservation_url" = CONCAT('/reservation/', id::text) WHERE "reservation_url" IS NULL`
     );
     console.log(`Seeded ${seedShops.length} shops`);
   } else {

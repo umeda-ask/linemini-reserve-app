@@ -240,7 +240,7 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
       {reservationEnabled && (
         <div className="rounded-md border bg-muted/30 p-3 space-y-1.5" data-testid={`text-reservation-url-${shop.id}`}>
           <p className="text-xs font-semibold text-muted-foreground mb-2">予約ページURL</p>
-          <CopyableUrl label="WEB版" path={`/reservation/${shop.id}`} />
+          <CopyableUrl label="WEB版" path={`/web/reservation/${shop.id}`} />
           <CopyableUrl label="LINEミニアプリ版" path={`/app/reservation/${shop.id}`} />
         </div>
       )}

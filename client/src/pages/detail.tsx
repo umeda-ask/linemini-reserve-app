@@ -247,8 +247,9 @@ export default function DetailPage() {
 
   const galleryImages = shop.galleryImageUrls?.filter(Boolean) || [];
   const sliderImages = galleryImages.length > 0 ? galleryImages : [shop.imageUrl];
+  const prefix = basePath.split("/").find(seg =>["app","web","web-sp"].includes(seg)) ?? "app" ;
   const reservationPath = shop.reservationUrl
-    ? shop.reservationUrl.replace(/^\/(app|web|web-sp)\//, `${basePath}/`)
+    ? `${basePath}${shop.reservationUrl}`
     : null;
 
   return (

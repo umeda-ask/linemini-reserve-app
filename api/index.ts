@@ -717,7 +717,7 @@ export function ensureSetup(): Promise<void> {
           const rows = await sql`SELECT * FROM shops WHERE slug = ${slug}`;
           if (!rows[0]) return res.status(500).json({ message: "Failed to create shop" });
 
-          // await sql`UPDATE shops SET reservation_url = CONCAT('/app/reservation/', id::text) WHERE id = ${rows[0].id} AND reservation_url IS NULL`;
+          // await sql`UPDATE shops SET reservation_url = CONCAT('/reservation/', id::text) WHERE id = ${rows[0].id} AND reservation_url IS NULL`;
           const updatedRows = await sql`SELECT * FROM shops WHERE id = ${rows[0].id}`;
           res.status(201).json(toShop(updatedRows[0]));
         } catch (e: any) { console.error("shop create error:", e); res.status(500).json({ message: "Failed to create shop" }); }
@@ -1554,7 +1554,7 @@ export function ensureSetup(): Promise<void> {
             await sql`INSERT INTO shops (slug,name,description,area_id,area,category,subcategory,address,phone,hours,closed_days,website,display_order,line_account_url,image_url,gallery_image_urls,is_active,enable_staff_assignment,like_count) VALUES ('test-salon-hanagokoro','総合サロン はなごころ','小田原駅徒歩5分。ヘア・エステ・ネイル・リラクゼーションを一か所で。完全予約制の上質な空間。',1,'小田原','美容','トータルビューティー','神奈川県小田原市南町2-3-15 はなごころビル2F','0465-33-8899','10:00〜20:00（最終受付 19:00）','毎週火曜日・第1月曜日','https://salon-hanagokoro.jp',99,'https://line.me/R/ti/p/@salon-hanagokoro','https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&q=80',ARRAY['https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&q=80','https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=800&q=80','https://images.unsplash.com/photo-1573461160327-a85cf5a11ad5?w=800&q=80'],true,true,56)`;
             const sr=await sql`SELECT id FROM shops WHERE slug='test-salon-hanagokoro'`; shopId=sr[0].id;
           }
-          await sql`UPDATE shops SET reservation_url='/app/reservation/'||${shopId}::text WHERE id=${shopId}`;
+          await sql`UPDATE shops SET reservation_url='/reservation/'||${shopId}::text WHERE id=${shopId}`;
           res.json({ok:true,shopId});
         } catch (e: any) { console.error("seed-test error:", e); res.status(500).json({message:"Seed test failed",error:e.message}); }
       });
