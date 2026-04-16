@@ -93,9 +93,6 @@ export const shops = pgTable("shops", {
   likeCount:             integer("like_count").notNull().default(0),
   stripeConnectId:       text("stripe_connect_id"),
   stripeConnectStatus:   text("stripe_connect_status").default("none"),
-  tableCount:            integer("table_count").default(0),
-  maxPartySize:          integer("max_party_size"),
-  staffSelectionEnabled: boolean("staff_selection_enabled").notNull().default(false),
   updatedAt:             timestamp("updated_at").notNull().defaultNow(),
   createdAt:             timestamp("created_at").notNull().defaultNow(),
 });
@@ -205,7 +202,7 @@ export const bookingSettings = pgTable("booking_settings", {
   storeHours:           text("store_hours").default(""),
   storeClosedDays:      text("store_closed_days").default(""),
   bannerUrl:            text("banner_url").default(""),
-  staffSelectionEnabled: text("staff_selection_enabled").default("false"),
+  staffSelectionEnabled:boolean("staff_selection_enabled").notNull().default(false),
   tableCount:           integer("table_count").default(0),
   // キャンセル期限カラム追加（一律で１日前とするため、default値は1）
   cancelLimitDays:      integer("cancel_limit_days").default(1),
