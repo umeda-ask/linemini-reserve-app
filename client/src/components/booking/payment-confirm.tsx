@@ -26,6 +26,7 @@ interface PaymentConfirmProps {
   staffSelectionEnabled?: boolean;
   category: string;
   bookingMode?: "normal" | "request";
+  stripeConnectId?: string;
   onConfirm: (info: { customerName: string; customerEmail: string; customerPhone: string; partySize?: number; customerNote: string; stripePaymentIntentId?: string }) => void;
   onBack: () => void;
 }
@@ -168,16 +169,18 @@ function CardPaymentForm({
   );
 }
 
-let stripePromiseCache: ReturnType<typeof loadStripe> | null = null;
+const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
 
-async function getStripePromise() {
-  if (stripePromiseCache) return stripePromiseCache;
-  const res = await fetch("/api/stripe/config");
-  const { publishableKey } = await res.json();
-  stripePromiseCache = loadStripe(publishableKey);
-  return stripePromiseCache;
-}
-
+  async function getStripePromise(stripeAccountId?: string) {
+    const cacheKey = stripeAccountId || "__platform__";
+    if (stripePromiseCache.has(cacheKey)) return stripePromiseCache.get(cacheKey)!;
+    const res = await fetch("/api/stripe/config");
+    const { publishableKey } = await res.json();
+    const promise = loadStripe(publishableKey, stripeAccountId ? { stripeAccount: stripeAccountId } : undefined);
+    stripePromiseCache.set(cacheKey, promise);
+    return promise;
+  }
+  
 export function PaymentConfirm({
   shopId,
   course,
@@ -188,6 +191,7 @@ export function PaymentConfirm({
   staffSelectionEnabled = false,
   category,
   bookingMode = "normal",
+  stripeConnectId,
   onConfirm,
   onBack,
 }: PaymentConfirmProps) {
@@ -208,9 +212,9 @@ export function PaymentConfirm({
 
   useEffect(() => {
     if (needsPayment) {
-      getStripePromise().then(setStripePromise);
+      getStripePromise(stripeConnectId).then(setStripePromise);
     }
-  }, [needsPayment]);
+  }, [needsPayment, stripeConnectId]);
 
   const validate = () => {
     const e: typeof errors = {};

@@ -1245,51 +1245,36 @@ export function ensureSetup(): Promise<void> {
         }
       });
       app.post("/api/shops/:shopId/cancel/:token", async (req, res) => {
-          const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
-          try {
-            const rows = await sql`SELECT status, stripe_payment_intent_id FROM booking_reservations WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
-            if (rows.length === 0) return res.status(404).json({message:"Reservation not found"});
-            if (rows[0]?.status === "cancelled") return res.json({ok:true,already:true});
+            const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
+            try {
+              const [rows, shopRows] = await Promise.all([
+                sql`SELECT status, stripe_payment_intent_id FROM booking_reservations WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`,
+                sql`SELECT stripe_connect_id FROM shops WHERE id=${shopId}`,
+              ]);
+              if (rows.length === 0) return res.status(404).json({message:"Reservation not found"});
+              if (rows[0]?.status === "cancelled") return res.json({ok:true,already:true});
 
-            // Stripe返金処理（事前決済がある場合）
-            let refundId: string | null = null;
-            const piId = rows[0]?.stripe_payment_intent_id;
-            if (piId) {
-              try {
-                const stripe = await getStripeClient();
-                const refund = await stripe.refunds.create({ payment_intent: piId });
-                refundId = refund.id;
-                console.log("Stripe refund created:", refundId, "for pi:", piId);
-              } catch (refundErr: any) {
-                console.warn("Stripe refund failed (continuing cancel):", refundErr.message);
+              // Stripe返金処理（子アカウントから直接返金）
+              let refundId: string | null = null;
+              const piId = rows[0]?.stripe_payment_intent_id;
+              const connectId = shopRows[0]?.stripe_connect_id;
+              if (piId) {
+                try {
+                  const stripe = await getStripeClient();
+                  // Direct Charge → 子アカウント指定で返金
+                  const refundOpts = connectId ? { stripeAccount: connectId } : undefined;
+                  const refund = await stripe.refunds.create({ payment_intent: piId }, refundOpts as any);
+                  refundId = refund.id;
+                  console.log("Stripe refund created:", refundId, "for pi:", piId, "account:", connectId || "platform");
+                } catch (refundErr: any) {
+                  console.warn("Stripe refund failed (continuing cancel):", refundErr.message);
+                }
               }
-            }
 
-            await sql`UPDATE booking_reservations SET status='cancelled' WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
-            res.json({ok:true, refunded: !!refundId, refundId});
-          } catch { res.status(500).json({message:"Failed to cancel reservation"}); }
-        });
-
-      // ─── 問い合わせ ───
-      app.post("/api/shops/:shopId/inquiries", async (_req, res) => res.status(201).json({ok:true}));
-      app.get("/api/shops/:shopId/inquiries", async (_req, res) => res.json([]));
-
-      // ─── Stripe ───
-      app.get("/api/stripe/config", async (_req, res) => { try { res.json({publishableKey:await getStripePublishableKeyValue()}); } catch { res.json({publishableKey:""}); } });
-      app.get("/api/stripe/connect/status/:shopId", async (req, res) => {
-        try {
-          const shopId=parseInt(req.params.shopId);
-          const rows=await sql`SELECT id,name,stripe_connect_id,stripe_connect_status FROM shops WHERE id=${shopId}`;
-          if (!rows.length) return res.status(404).json({error:"Shop not found"});
-          const shop=rows[0]; if (!shop.stripe_connect_id) return res.json({shopId,accountId:null,status:"none",connected:false});
-          try {
-            const stripe=await getStripeClient(); const account=await stripe.accounts.retrieve(shop.stripe_connect_id);
-            const newStatus=(account.capabilities?.transfers==="active"&&account.capabilities?.card_payments==="active")?"active":"pending";
-            if (newStatus!==shop.stripe_connect_status) await sql`UPDATE shops SET stripe_connect_status=${newStatus} WHERE id=${shopId}`;
-            return res.json({shopId,accountId:shop.stripe_connect_id,status:newStatus,connected:newStatus==="active",chargesEnabled:account.charges_enabled,payoutsEnabled:account.payouts_enabled,detailsSubmitted:account.details_submitted});
-          } catch { return res.json({shopId,accountId:shop.stripe_connect_id,status:shop.stripe_connect_status||"pending",connected:shop.stripe_connect_status==="active"}); }
-        } catch (e: any) { res.status(500).json({error:e.message}); }
-      });
+              await sql`UPDATE booking_reservations SET status='cancelled' WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
+              res.json({ok:true, refunded: !!refundId, refundId});
+            } catch { res.status(500).json({message:"Failed to cancel reservation"}); }
+          });
       app.post("/api/stripe/connect/payment-intent", async (req, res) => {
         try {
           const {shopId,amount,courseId,courseName}=req.body; if (!shopId||!amount) return res.status(400).json({error:"shopId and amount required"});
@@ -1297,8 +1282,8 @@ export function ensureSetup(): Promise<void> {
           if (!rows.length) return res.status(404).json({error:"Shop not found"});
           const shop=rows[0]; if (!shop.stripe_connect_id) return res.status(400).json({error:"この店舗はStripe Connect未設定です"});
           const stripe=await getStripeClient();
-          let pi; try { pi=await stripe.paymentIntents.create({amount:Math.round(amount),currency:"jpy",payment_method_types:["card"],description:courseName||"コース予約",on_behalf_of:shop.stripe_connect_id,transfer_data:{destination:shop.stripe_connect_id},metadata:{shop_id:String(shopId),shop_name:shop.name,course_id:courseId||"",course_name:courseName||""}}); }
-          catch (ce: any) { console.warn("Stripe Connect fallback:",ce.code); pi=await stripe.paymentIntents.create({amount:Math.round(amount),currency:"jpy",payment_method_types:["card"],description:courseName||"コース予約",metadata:{shop_id:String(shopId),shop_name:shop.name,course_id:courseId||"",course_name:courseName||"",note:"pending_onboarding_fallback"}}); }
+          let pi; try { pi=await stripe.paymentIntents.create({amount:Math.round(amount),currency:"jpy",payment_method_types:["card"],description:courseName||"コース予約",metadata:{shop_id:String(shopId),shop_name:shop.name,course_id:courseId||"",course_name:courseName||""}},{stripeAccount:shop.stripe_connect_id}); }
+            catch (ce: any) { console.warn("Stripe Direct Charge fallback:",ce.code); pi=await stripe.paymentIntents.create({amount:Math.round(amount),currency:"jpy",payment_method_types:["card"],description:courseName||"コース予約",metadata:{shop_id:String(shopId),shop_name:shop.name,course_id:courseId||"",course_name:courseName||"",note:"pending_onboarding_fallback"}}); } }
           res.json({clientSecret:pi.client_secret});
         } catch (e: any) { console.error("PaymentIntent error:",e.message); res.status(500).json({error:e.message}); }
       });

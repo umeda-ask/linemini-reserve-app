@@ -216,6 +216,7 @@ export default function ReservationPage() {
         {step === "confirm" && selectedCourse && (
           <PaymentConfirm
             shopId={shopId}
+            stripeConnectId={shop.stripeConnectId ?? undefined}
             course={selectedCourse}
             staff={selectedStaff}
             date={selectedDate}
