@@ -1275,6 +1275,27 @@ export function ensureSetup(): Promise<void> {
               res.json({ok:true, refunded: !!refundId, refundId});
             } catch { res.status(500).json({message:"Failed to cancel reservation"}); }
           });
+
+      // ─── 問い合わせ ───
+      app.post("/api/shops/:shopId/inquiries", async (_req, res) => res.status(201).json({ok:true}));
+      app.get("/api/shops/:shopId/inquiries", async (_req, res) => res.json([]));
+
+      // ─── Stripe ───
+      app.get("/api/stripe/config", async (_req, res) => { try { res.json({publishableKey:await getStripePublishableKeyValue()}); } catch { res.json({publishableKey:""}); } });
+      app.get("/api/stripe/connect/status/:shopId", async (req, res) => {
+        try {
+          const shopId=parseInt(req.params.shopId);
+          const rows=await sql`SELECT id,name,stripe_connect_id,stripe_connect_status FROM shops WHERE id=${shopId}`;
+          if (!rows.length) return res.status(404).json({error:"Shop not found"});
+          const shop=rows[0]; if (!shop.stripe_connect_id) return res.json({shopId,accountId:null,status:"none",connected:false});
+          try {
+            const stripe=await getStripeClient(); const account=await stripe.accounts.retrieve(shop.stripe_connect_id);
+            const newStatus=(account.capabilities?.transfers==="active"&&account.capabilities?.card_payments==="active")?"active":"pending";
+            if (newStatus!==shop.stripe_connect_status) await sql`UPDATE shops SET stripe_connect_status=${newStatus} WHERE id=${shopId}`;
+            return res.json({shopId,accountId:shop.stripe_connect_id,status:newStatus,connected:newStatus==="active",chargesEnabled:account.charges_enabled,payoutsEnabled:account.payouts_enabled,detailsSubmitted:account.details_submitted});
+          } catch { return res.json({shopId,accountId:shop.stripe_connect_id,status:shop.stripe_connect_status||"pending",connected:shop.stripe_connect_status==="active"}); }
+        } catch (e: any) { res.status(500).json({error:e.message}); }
+      });
       app.post("/api/stripe/connect/payment-intent", async (req, res) => {
         try {
           const {shopId,amount,courseId,courseName}=req.body; if (!shopId||!amount) return res.status(400).json({error:"shopId and amount required"});
