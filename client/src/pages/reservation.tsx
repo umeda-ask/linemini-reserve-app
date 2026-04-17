@@ -51,7 +51,7 @@ export default function ReservationPage() {
     if (!shopId) return;
     fetchSettings(shopId)
       .then((s) => {
-        setStaffSelectionEnabled(s.staff_selection_enabled === "true");
+        setStaffSelectionEnabled(s.staff_selection_enabled === true);
         if (s.max_party_size) setMaxPartySize(parseInt(s.max_party_size, 10));
         setCategory(s.shop_category ?? "");
       })

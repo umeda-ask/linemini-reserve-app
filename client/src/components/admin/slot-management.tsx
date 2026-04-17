@@ -40,7 +40,7 @@ export function SlotManagement({ shopId }: { shopId: number }) {
     setLoading(true);
     Promise.all([fetchStaff(shopId), fetchSettings(shopId)]).then(([s, settings]) => {
       setStaffList(s);
-      const enabled = settings.staff_selection_enabled === "true";
+      const enabled = settings.staff_selection_enabled === true;
       setStaffEnabled(enabled);
       const ot = settings.store_open_time || "10:00";
       const ct = settings.store_close_time || "19:00";

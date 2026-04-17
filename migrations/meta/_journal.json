@@ -15,6 +15,13 @@
       "when": 1776323078919,
       "tag": "0001_hard_the_santerians",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776327505439,
+      "tag": "0002_thankful_moonstone",
+      "breakpoints": true
     }
   ]
 }

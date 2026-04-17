@@ -74,7 +74,7 @@ const DEMO_DATA: Record<number, { staff: { name: string; role: string; avatar: s
       { name: "宴会プラン（2時間）", category: "宴会", duration: 120, price: 4500, description: "飲み放題付き宴会プラン。ラーメン・チャーハン・餃子など全8品。", prepaymentOnly: true },
       { name: "ランチセット予約", category: "食事", duration: 45, price: 1200, description: "日替わりラーメン＋ミニチャーハン＋ドリンクのお得なランチセット。", prepaymentOnly: false },
     ],
-    settings: { store_name: "麺処 小田原屋", store_description: "自家製麺と厳選スープのこだわりラーメン店", store_address: "神奈川県小田原市栄町2-1-5", store_phone: "0465-22-1234", store_email: "info@odawaraya.jp", store_hours: "11:00〜22:00（L.O. 21:30）", store_closed_days: "毎週水曜日", banner_url: "", staff_selection_enabled: "false" },
+    settings: { store_name: "麺処 小田原屋", store_description: "自家製麺と厳選スープのこだわりラーメン店", store_address: "神奈川県小田原市栄町2-1-5", store_phone: "0465-22-1234", store_email: "info@odawaraya.jp", store_hours: "11:00〜22:00（L.O. 21:30）", store_closed_days: "毎週水曜日", banner_url: "" },
   },
   3: {
     staff: [
@@ -87,7 +87,7 @@ const DEMO_DATA: Record<number, { staff: { name: string; role: string; avatar: s
       { name: "カット＋パーマ", category: "ヘア", duration: 150, price: 13200, description: "カットとパーマのセットメニュー。デジタルパーマも対応。", prepaymentOnly: false },
       { name: "ヘッドスパ", category: "リラクゼーション", duration: 45, price: 5500, description: "頭皮ケア＆リラクゼーション。炭酸泉使用。", prepaymentOnly: false },
     ],
-    settings: { store_name: "Hair Salon MIKU", store_description: "あなたの魅力を引き出すヘアサロン", store_address: "神奈川県大和市中央3-5-8", store_phone: "046-261-3456", store_email: "info@salon-miku.jp", store_hours: "10:00〜20:00（最終受付19:00）", store_closed_days: "毎週火曜日", banner_url: "", staff_selection_enabled: "true" },
+    settings: { store_name: "Hair Salon MIKU", store_description: "あなたの魅力を引き出すヘアサロン", store_address: "神奈川県大和市中央3-5-8", store_phone: "046-261-3456", store_email: "info@salon-miku.jp", store_hours: "10:00〜20:00（最終受付19:00）", store_closed_days: "毎週火曜日", banner_url: "" },
   },
 };
 
@@ -1219,7 +1219,7 @@ export function ensureSetup(): Promise<void> {
               store_hours: s.store_hours || "",
               store_closed_days: s.store_closed_days || "",
               banner_url: s.banner_url || "",
-              staff_selection_enabled: s.staff_selection_enabled || "false",
+              staff_selection_enabled: s.staff_selection_enabled || false,
               table_count: s.table_count != null ? String(s.table_count) : "0",
               max_party_size:
                 s.max_party_size != null ? String(s.max_party_size) : "0",
@@ -1246,8 +1246,8 @@ export function ensureSetup(): Promise<void> {
             store_closed_days: s.closed_days || "",
             banner_url: s.image_url || "",
             staff_selection_enabled: s.enable_staff_assignment
-              ? "true"
-              : "false",
+              ? true
+              : false,
           });
         } catch (e: any) {
           console.error("settings error:", e);
@@ -1290,7 +1290,7 @@ export function ensureSetup(): Promise<void> {
               ) VALUES (
                 ${shopId}, ${s.store_name || ""}, ${s.store_description || ""}, ${s.store_address || ""},
                 ${s.store_phone || ""}, ${s.store_email || ""}, ${s.store_hours || ""},
-                ${s.store_closed_days || ""}, ${s.banner_url || ""}, ${s.staff_selection_enabled || "false"},
+                ${s.store_closed_days || ""}, ${s.banner_url || ""}, ${s.staff_selection_enabled || false},
                 ${parseInt(s.table_count || "0", 10)}, ${parseInt(s.max_party_size || "0", 10)}, NOW()
               )
             `;

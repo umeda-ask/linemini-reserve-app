@@ -461,7 +461,7 @@ function ShopSettingsPanel({ shopId }: { shopId: number }) {
     fetchSettings(shopId).then((s) => {
       setTableCount(s.table_count ?? "");
       setMaxPartySize(s.max_party_size ?? "");
-      setStaffSelectionEnabled(s.staff_selection_enabled === "true");
+      setStaffSelectionEnabled(s.staff_selection_enabled === true);
       setLoaded(true);
     });
   }, [shopId]);

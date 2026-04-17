@@ -69,7 +69,7 @@ export interface StoreSettings {
   store_hours: string;
   store_closed_days: string;
   banner_url: string;
-  staff_selection_enabled: string;
+  staff_selection_enabled: boolean;
   table_count?: string;
   max_party_size?: string;
   store_open_time?: string;
