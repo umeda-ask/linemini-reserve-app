@@ -1303,8 +1303,10 @@ export function ensureSetup(): Promise<void> {
           if (!rows.length) return res.status(404).json({error:"Shop not found"});
           const shop=rows[0]; if (!shop.stripe_connect_id) return res.status(400).json({error:"この店舗はStripe Connect未設定です"});
           const stripe=await getStripeClient();
-          let pi; try { pi=await stripe.paymentIntents.create({amount:Math.round(amount),currency:"jpy",payment_method_types:["card"],description:courseName||"コース予約",metadata:{shop_id:String(shopId),shop_name:shop.name,course_id:courseId||"",course_name:courseName||""}},{stripeAccount:shop.stripe_connect_id}); }
-            catch (ce: any) { console.warn("Stripe Direct Charge fallback:",ce.code); pi=await stripe.paymentIntents.create({amount:Math.round(amount),currency:"jpy",payment_method_types:["card"],description:courseName||"コース予約",metadata:{shop_id:String(shopId),shop_name:shop.name,course_id:courseId||"",course_name:courseName||"",note:"pending_onboarding_fallback"}}); } }
+          const pi = await stripe.paymentIntents.create(
+                {amount:Math.round(amount),currency:"jpy",payment_method_types:["card"],description:courseName||"コース予約",metadata:{shop_id:String(shopId),shop_name:shop.name,course_id:courseId||"",course_name:courseName||""}},
+                {stripeAccount:shop.stripe_connect_id}
+              );
           res.json({clientSecret:pi.client_secret});
         } catch (e: any) { console.error("PaymentIntent error:",e.message); res.status(500).json({error:e.message}); }
       });
