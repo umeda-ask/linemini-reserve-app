@@ -39,6 +39,7 @@ export interface Reservation {
   partySize?: number;
   lineProfile: string;
   bookingMode?: "normal" | "request";
+  stripePaymentIntentId?: string;
 }
 
 export interface CancelInfo {

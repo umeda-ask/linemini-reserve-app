@@ -224,7 +224,7 @@ export default function ReservationPage() {
             staffSelectionEnabled={staffSelectionEnabled}
             category={category}
             bookingMode={bookingMode}
-            onConfirm={async ({ customerName, customerEmail, customerPhone, partySize, customerNote }) => {
+            onConfirm={async ({ customerName, customerEmail, customerPhone, partySize, customerNote, stripePaymentIntentId }) => {
               const isRequest = bookingMode === "request";
               const res = await createReservation(shopId, {
                 customerName,
@@ -241,7 +241,8 @@ export default function ReservationPage() {
                 paid: isRequest ? false : selectedCourse!.prepaymentOnly,
                 bookingMode: bookingMode,
                 partySize,
-                lineProfile:profile
+                lineProfile:profile,
+                stripePaymentIntentId: stripePaymentIntentId || undefined,
               });
               const result = res as { id: string; reservationToken: string };
               setReservationId(result.id);

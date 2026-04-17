@@ -26,7 +26,7 @@ interface PaymentConfirmProps {
   staffSelectionEnabled?: boolean;
   category: string;
   bookingMode?: "normal" | "request";
-  onConfirm: (info: { customerName: string; customerEmail: string; customerPhone: string; partySize?: number, customerNote: string }) => void;
+  onConfirm: (info: { customerName: string; customerEmail: string; customerPhone: string; partySize?: number; customerNote: string; stripePaymentIntentId?: string }) => void;
   onBack: () => void;
 }
 
@@ -45,7 +45,7 @@ function CardPaymentForm({
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-  onPaid: () => void;
+  onPaid: (paymentIntentId: string) => void;
   onBack: () => void;
   children: React.ReactNode;
 }) {
@@ -99,7 +99,7 @@ function CardPaymentForm({
       setCardError(error.message || "決済に失敗しました");
       setPaying(false);
     } else if (paymentIntent?.status === "succeeded") {
-      onPaid();
+      onPaid(paymentIntent.id);
     }
   };
 
@@ -317,13 +317,14 @@ export function PaymentConfirm({
             customerName={customerName}
             customerEmail={customerEmail}
             customerPhone={customerPhone}
-            onPaid={() => onConfirm({
-              customerName: customerName.trim(),
-              customerEmail: customerEmail.trim(),
-              customerPhone: customerPhone.trim(),
-              partySize: showPartySize ? partySize : undefined,
-              customerNote: notes.trim(),
-            })}
+            onPaid={(paymentIntentId) => onConfirm({
+                customerName: customerName.trim(),
+                customerEmail: customerEmail.trim(),
+                customerPhone: customerPhone.trim(),
+                partySize: showPartySize ? partySize : undefined,
+                customerNote: notes.trim(),
+                stripePaymentIntentId: paymentIntentId,
+              })}
             onBack={() => setFormSubmitted(false)}
           >
             <div />
