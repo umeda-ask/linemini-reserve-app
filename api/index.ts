@@ -1157,7 +1157,7 @@ export function ensureSetup(): Promise<void> {
           if (!customerName || !courseId)
             return res.status(400).json({ message: "Missing required fields" });
           const token = crypto.randomUUID().replace(/-/g, "");
-          await sql`INSERT INTO booking_reservations (shop_id,customer_name,customer_phone,customer_email,customer_note,date,time,staff_id,course_id,status,paid,cancel_token) VALUES (${shopId},${customerName},${customerPhone || null},${customerEmail || null},${customerNote || null},${date},${time},${staffId || "__shop__"},${courseId.toString()},${status},false,${token})`;
+          await sql`INSERT INTO booking_reservations (shop_id,customer_name,customer_phone,customer_email,customer_note,date,time,staff_id,course_id,status,paid,cancel_token,stripe_payment_intent_id) VALUES (${shopId},${customerName},${customerPhone || null},${customerEmail || null},${customerNote || null},${date},${time},${staffId || "__shop__"},${courseId.toString()},${status},false,${token},${stripePaymentIntentId || null})`;
           const rows = await sql`SELECT * FROM booking_reservations WHERE cancel_token = ${token}`;
           const newReservation = rows[0];
           if (!newReservation)
@@ -1245,16 +1245,30 @@ export function ensureSetup(): Promise<void> {
         }
       });
       app.post("/api/shops/:shopId/cancel/:token", async (req, res) => {
-        const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
-        try {
-          const cnt=await sql`SELECT COUNT(*) as cnt FROM booking_reservations WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
-          if (parseInt(cnt[0]?.cnt||"0")===0) return res.status(404).json({message:"Reservation not found"});
-          const rows=await sql`SELECT status FROM booking_reservations WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
-          if (rows[0]?.status==="cancelled") return res.json({ok:true,already:true});
-          await sql`UPDATE booking_reservations SET status='cancelled' WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
-          res.json({ok:true});
-        } catch { res.status(500).json({message:"Failed to cancel reservation"}); }
-      });
+          const shopId = parseInt(req.params.shopId); if (isNaN(shopId)) return res.status(400).json({message:"Invalid shop ID"});
+          try {
+            const rows = await sql`SELECT status, stripe_payment_intent_id FROM booking_reservations WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
+            if (rows.length === 0) return res.status(404).json({message:"Reservation not found"});
+            if (rows[0]?.status === "cancelled") return res.json({ok:true,already:true});
+
+            // Stripe返金処理（事前決済がある場合）
+            let refundId: string | null = null;
+            const piId = rows[0]?.stripe_payment_intent_id;
+            if (piId) {
+              try {
+                const stripe = await getStripeClient();
+                const refund = await stripe.refunds.create({ payment_intent: piId });
+                refundId = refund.id;
+                console.log("Stripe refund created:", refundId, "for pi:", piId);
+              } catch (refundErr: any) {
+                console.warn("Stripe refund failed (continuing cancel):", refundErr.message);
+              }
+            }
+
+            await sql`UPDATE booking_reservations SET status='cancelled' WHERE cancel_token=${req.params.token} AND shop_id=${shopId}`;
+            res.json({ok:true, refunded: !!refundId, refundId});
+          } catch { res.status(500).json({message:"Failed to cancel reservation"}); }
+        });
 
       // ─── 問い合わせ ───
       app.post("/api/shops/:shopId/inquiries", async (_req, res) => res.status(201).json({ok:true}));

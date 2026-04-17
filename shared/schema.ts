@@ -183,8 +183,9 @@ export const bookingReservations = pgTable("booking_reservations", {
   courseId:      text("course_id").notNull(),
   status:        text("status").default("confirmed"),
   paid:          boolean("paid").default(false),
-  cancelToken:   text("cancel_token"),
-  createdAt:     timestamp("created_at").defaultNow(),
+  cancelToken:          text("cancel_token"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  createdAt:            timestamp("created_at").defaultNow(),
 }, (t) => [
   uniqueIndex("booking_reservations_cancel_token_idx").on(t.cancelToken),
 ]);
