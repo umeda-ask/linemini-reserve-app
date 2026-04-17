@@ -25,7 +25,8 @@ interface PaymentConfirmProps {
   maxPartySize?: number;
   staffSelectionEnabled?: boolean;
   category: string;
-  onConfirm: (info: { customerName: string; customerEmail: string; customerPhone: string; partySize?: number, customerNote: string }) => void;
+  stripeConnectId?: string;
+  onConfirm: (info: { customerName: string; customerEmail: string; customerPhone: string; partySize?: number; customerNote: string; stripePaymentIntentId?: string }) => void;
   onBack: () => void;
 }
 
@@ -44,7 +45,7 @@ function CardPaymentForm({
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-  onPaid: () => void;
+  onPaid: (paymentIntentId: string) => void;
   onBack: () => void;
   children: React.ReactNode;
 }) {
@@ -98,7 +99,7 @@ function CardPaymentForm({
       setCardError(error.message || "決済に失敗しました");
       setPaying(false);
     } else if (paymentIntent?.status === "succeeded") {
-      onPaid();
+      onPaid(paymentIntent.id);
     }
   };
 
@@ -167,15 +168,26 @@ function CardPaymentForm({
   );
 }
 
-let stripePromiseCache: ReturnType<typeof loadStripe> | null = null;
+// let stripePromiseCache: ReturnType<typeof loadStripe> | null = null;
 
-async function getStripePromise() {
-  if (stripePromiseCache) return stripePromiseCache;
-  const res = await fetch("/api/stripe/config");
-  const { publishableKey } = await res.json();
-  stripePromiseCache = loadStripe(publishableKey);
-  return stripePromiseCache;
-}
+// async function getStripePromise() {
+//   if (stripePromiseCache) return stripePromiseCache;
+//   const res = await fetch("/api/stripe/config");
+//   const { publishableKey } = await res.json();
+//   stripePromiseCache = loadStripe(publishableKey);
+//   return stripePromiseCache;
+// }
+
+const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
+  async function getStripePromise(stripeAccountId?: string) {
+    const cacheKey = stripeAccountId || "__platform__";
+    if (stripePromiseCache.has(cacheKey)) return stripePromiseCache.get(cacheKey)!;
+    const res = await fetch("/api/stripe/config");
+    const { publishableKey } = await res.json();
+    const promise = loadStripe(publishableKey, stripeAccountId ? { stripeAccount: stripeAccountId } : undefined);
+    stripePromiseCache.set(cacheKey, promise);
+    return promise;
+  }
 
 export function PaymentConfirm({
   shopId,
@@ -186,6 +198,7 @@ export function PaymentConfirm({
   maxPartySize = 20,
   staffSelectionEnabled = false,
   category,
+  stripeConnectId,
   onConfirm,
   onBack,
 }: PaymentConfirmProps) {
@@ -204,11 +217,19 @@ export function PaymentConfirm({
   const showPartySize = !staffSelectionEnabled;
   const needsPayment = course.prepaymentOnly && course.price > 0;
 
+  // useEffect(() => {
+  //   if (needsPayment) {
+  //     getStripePromise().then(setStripePromise);
+  //   }
+  // }, [needsPayment]);
+
   useEffect(() => {
-    if (needsPayment) {
-      getStripePromise().then(setStripePromise);
-    }
-  }, [needsPayment]);
+      if (needsPayment) {
+        const promise = getStripePromise(stripeConnectId);
+        setStripePromise(promise);
+      }
+    }, [needsPayment, stripeConnectId]);
+
 
   const validate = () => {
     const e: typeof errors = {};
@@ -314,12 +335,13 @@ export function PaymentConfirm({
             customerName={customerName}
             customerEmail={customerEmail}
             customerPhone={customerPhone}
-            onPaid={() => onConfirm({
+            onPaid={(piId) => onConfirm({
               customerName: customerName.trim(),
               customerEmail: customerEmail.trim(),
               customerPhone: customerPhone.trim(),
               partySize: showPartySize ? partySize : undefined,
               customerNote: notes.trim(),
+              stripePaymentIntentId: piId,
             })}
             onBack={() => setFormSubmitted(false)}
           >

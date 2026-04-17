@@ -39,6 +39,7 @@ export interface Reservation {
   paid: boolean;
   partySize?: number;
   lineProfile: string;
+  stripePaymentIntentId?: string;
 }
 
 export interface CancelInfo {

@@ -19,8 +19,10 @@ export function BookingComplete({ shopId, course, staff, date, time, reservation
   // const parsedDate = parseISO(date);
   const parsedDate = date ? parseISO(date) : null;
   const isRequest = course.enableRequestMode;
+  const isWeb = window.location.pathname.startsWith('/web');
+  const pathPrefix = isWeb ? "web" : "app"
   const cancelUrl = reservationToken
-    ? `${window.location.origin}/app/cancel/${shopId}/${reservationToken}`
+    ? `${window.location.origin}/${pathPrefix}/cancel/${shopId}/${reservationToken}`
     : null;
 
   return (
