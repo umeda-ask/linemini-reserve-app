@@ -922,17 +922,20 @@ export function ensureSetup(): Promise<void> {
           try {
             const rows = await sql`
               UPDATE shop_menu_items SET
-                name          = COALESCE(${name          ?? null}, name),
-                price         = COALESCE(${price         ?? null}, price),
-                comment       = COALESCE(${comment       ?? null}, comment),
-                image_url     = ${imageUrl !== undefined ? imageUrl : null},
-                is_visible    = COALESCE(${isVisible     ?? null}, is_visible),
-                display_order = COALESCE(${displayOrder  ?? null}, display_order)
+                name          = COALESCE(${name ?? null}, name),
+                price         = COALESCE(${price ?? null}, price),
+                comment       = COALESCE(${comment ?? null}, comment),
+                image_url     = COALESCE(${imageUrl !== undefined ? imageUrl : null}, image_url),
+                is_visible    = COALESCE(${isVisible !== undefined ? isVisible : null}, is_visible),
+                display_order = COALESCE(${displayOrder ?? null}, display_order)
               WHERE id = ${id} AND shop_id = ${shopId}
               RETURNING *`;
             if (!rows[0]) return res.status(404).json({ message: "Not found" });
             res.json(rows[0]);
-          } catch { res.status(500).json({ message: "Failed to update menu item" }); }
+          } catch (e) {
+            console.error(e);
+            res.status(500).json({ message: "Failed to update menu item" });
+          }
         });
 
         app.delete("/api/shops/:shopId/menu-items/:id", async (req, res) => {
@@ -1523,9 +1526,7 @@ export function ensureSetup(): Promise<void> {
           if (parseInt(cnt[0]?.cnt || "0") === 0)
             return res.status(404).json({ message: "Reservation not found" });
           const rows =
-            await sql`SELECT r.*, c.name as course_name, c.duration as course_duration, c.price as course_price, bs.cancel_limit_days as cancel_limit FROM booking_reservations r LEFT JOIN booking_courses c ON c.id::text = r.course_id AND c.shop_id = r.shop_id LEFT JOIN booking_settings bs ON r.shop_id = bs.shop_id WHERE r.cancel_token = ${req.params.token} AND r.shop_id = ${shopId};`;
-            // await sql`SELECT r.*, c.name as course_name, c.duration as course_duration, c.price as course_price FROM booking_reservations r LEFT JOIN booking_courses c ON c.id::text = r.course_id AND c.shop_id = ${shopId} WHERE r.cancel_token=${req.params.token} AND r.shop_id=${shopId}`;
-          
+            await sql`SELECT r.*, c.name as course_name, c.duration as course_duration, c.price as course_price, bs.cancel_limit_days as cancel_limit FROM booking_reservations r LEFT JOIN booking_courses c ON c.id::text = r.course_id AND c.shop_id = r.shop_id LEFT JOIN booking_settings bs ON r.shop_id = bs.shop_id WHERE r.cancel_token = ${req.params.token} AND r.shop_id = ${shopId}`;
             if (!rows[0])
             return res.status(404).json({ message: "Reservation not found" });
           const r = rows[0];
@@ -1539,7 +1540,8 @@ export function ensureSetup(): Promise<void> {
             courseDuration: r.course_duration || 60,
             coursePrice: r.course_price || 0,
             status: r.status,
-            cancelLimit: r.cancel_limit
+            cancelLimit: r.cancel_limit,
+            partySize: r.customer_count
           });
         } catch {
           res.status(500).json({ message: "Failed to fetch reservation" });
