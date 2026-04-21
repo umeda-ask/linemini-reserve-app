@@ -99,7 +99,7 @@ function ShopEditor({ shop, onClose }: { shop: Shop; onClose: () => void }) {
       await apiRequest("PUT", `/api/shops/${shop.id}`, {
         displayOrder: parseInt(displayOrder) || 0,
         lineAccountUrl: lineAccountUrl || null,
-        reservationUrl: reservationEnabled ? `/app/reservation/${shop.id}` : null,
+        reservationUrl: reservationEnabled ? `/reservation/${shop.id}` : null,
         subcategory: subcategory || null,
       });
     },
