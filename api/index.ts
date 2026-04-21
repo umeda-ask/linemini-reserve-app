@@ -1411,7 +1411,7 @@ export function ensureSetup(): Promise<void> {
           if (!customerName || !courseId)
             return res.status(400).json({ message: "Missing required fields" });
           const token = crypto.randomUUID().replace(/-/g, "");
-          await sql`INSERT INTO booking_reservations (shop_id,customer_name,customer_phone,customer_email,customer_note,customer_count,date,time,staff_id,course_id,status,paid,cancel_token, stripe_payment_intent_id) VALUES (${shopId},${customerName},${customerPhone || null},${customerEmail || null},${customerNote || null},${partySize || null},${date},${time},${staffId || "__shop__"},${courseId.toString()},${status},false,${token},${stripePaymentIntentId})`;
+          await sql`INSERT INTO booking_reservations (shop_id,customer_name,customer_phone,customer_email,customer_note,customer_count,date,time,staff_id,course_id,status,paid,cancel_token, stripe_payment_intent_id) VALUES (${shopId},${customerName},${customerPhone || null},${customerEmail || null},${customerNote || null},${partySize || null},${date},${time},${staffId || "__shop__"},${courseId.toString()},${status},false,${token},${stripePaymentIntentId || null})`;
           const rows = await sql`SELECT * FROM booking_reservations WHERE cancel_token = ${token}`;
           const newReservation = rows[0];
           if (!newReservation)
