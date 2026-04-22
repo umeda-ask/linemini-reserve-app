@@ -699,15 +699,18 @@ export function ensureSetup(): Promise<void> {
         try {
           // 本番（Vercel）なら Blob に上げる
           if (process.env.VERCEL) {
+            console.log("Attempting to upload to Blob...");
             const { put } = await import('@vercel/blob');
             const blob = await put(req.file.originalname, req.file.buffer, { access: 'public' });
+            console.log("Blob upload success:", blob.url)
             return res.json({ url: blob.url }); // blobのURLを返す
           }
           
           // ローカルならローカルパスを返す
           res.json({ url: `/uploads/${req.file.filename}` });
-        } catch (e) {
-          res.status(500).json({ message: "Error" });
+        } catch (e: any) {
+          console.error("DETAILED UPLOAD ERROR:", e);
+          res.status(500).json({ message: "Error: " + e.message });
         }
       });
 
