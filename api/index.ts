@@ -49,21 +49,37 @@ try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch { /* read-only FS �
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
 };
+// const upload = multer({
+//   storage: multer.diskStorage({
+//     destination: (_req, _file, cb) => cb(null, uploadsDir),
+//     filename: (_req, file, cb) => {
+//       const ext = MIME_TO_EXT[file.mimetype] || ".jpg";
+//       cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+//     },
+//   }),
+//   limits: { fileSize: 5 * 1024 * 1024 },
+//   fileFilter: (_req, file, cb) => {
+//     if (MIME_TO_EXT[file.mimetype]) cb(null, true);
+//     else cb(new Error("Only image files (jpeg, png, gif, webp) are allowed"));
+//   },
+// });
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => {
-      const ext = MIME_TO_EXT[file.mimetype] || ".jpg";
-      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
-    },
-  }),
+  // Vercel環境ならメモリへ、ローカルならディスクへ
+  storage: process.env.VERCEL 
+    ? multer.memoryStorage() 
+    : multer.diskStorage({
+        destination: (_req, _file, cb) => cb(null, uploadsDir),
+        filename: (_req, file, cb) => {
+          const ext = MIME_TO_EXT[file.mimetype] || ".jpg";
+          cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+        },
+      }),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (MIME_TO_EXT[file.mimetype]) cb(null, true);
-    else cb(new Error("Only image files (jpeg, png, gif, webp) are allowed"));
+    else cb(new Error("Only image files allowed"));
   },
 });
-
 
 // ─── デモデータ ───
 const DEMO_DATA: Record<number, { staff: { name: string; role: string; avatar: string }[]; courses: { name: string; category: string; duration: number; price: number; description: string; prepaymentOnly: boolean }[]; settings: Record<string, string>; }> = {
@@ -673,9 +689,29 @@ export function ensureSetup(): Promise<void> {
 
       // 静的ファイル
       app.use("/uploads", express.static(uploadsDir, { setHeaders: (res) => res.setHeader("X-Content-Type-Options", "nosniff") }));
-      app.post("/api/upload", upload.single("image"), (req, res) => {
-        if (!req.file) return res.status(400).json({ message: "No image file provided" });
-        res.json({ url: `/uploads/${req.file.filename}` });
+      // app.post("/api/upload", upload.single("image"), (req, res) => {
+      //   if (!req.file) return res.status(400).json({ message: "No image file provided" });
+      //   res.json({ url: `/uploads/${req.file.filename}` });
+      // });
+      app.post("/api/upload", upload.single("image"), async (req, res) => {
+        if (!req.file) return res.status(400).json({ message: "No file" });
+
+        try {
+          // 本番（Vercel）なら Blob に上げる
+          if (process.env.VERCEL) {
+            console.log("Attempting to upload to Blob...");
+            const { put } = await import('@vercel/blob');
+            const blob = await put(req.file.originalname, req.file.buffer, { access: 'public' });
+            console.log("Blob upload success:", blob.url)
+            return res.json({ url: blob.url }); // blobのURLを返す
+          }
+          
+          // ローカルならローカルパスを返す
+          res.json({ url: `/uploads/${req.file.filename}` });
+        } catch (e: any) {
+          console.error("DETAILED UPLOAD ERROR:", e);
+          res.status(500).json({ message: "Error: " + e.message });
+        }
       });
 
       // ─── エリア・カテゴリ ───
