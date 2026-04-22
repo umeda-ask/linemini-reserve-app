@@ -570,8 +570,8 @@ async function sendEmailMessage(lineMessageData: any, token: string, isRequest:b
     port: 587,
     secure: false,
     auth: {
-      user: "n.tamura@askpro.co.jp",
-      pass: "Jak84520",
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
     },
     tls: {
       ciphers: "SSLv3",
@@ -618,8 +618,8 @@ async function sendEmailToStore(lineMessageData: any, isRequest: boolean) {
     port: 587,
     secure: false,
     auth: {
-      user: "n.tamura@askpro.co.jp",
-      pass: "Jak84520",
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
     },
     tls: {
       ciphers: "SSLv3",
