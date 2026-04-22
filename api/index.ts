@@ -12,7 +12,6 @@ import path from "path";
 import fs from "fs";
 // import { Pool } from "pg";
 import { Pool } from "@neondatabase/serverless";
-import axios from 'axios';
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -40,29 +39,21 @@ const sql = async (strings: TemplateStringsArray, ...values: any[]) => {
 
 
 // ─── ファイルアップロード ───
-// Vercel は読み取り専用FSのため /tmp を使用
-const uploadsDir = process.env.VERCEL
-  ? "/tmp/uploads"
-  : path.join(process.cwd(), "server", "uploads");
-try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch { /* read-only FS は無視 */ }
+// ローカル開発用ディレクトリ（Vercelではfileを直接DBに保存）
+const uploadsDir = path.join(process.cwd(), "server", "uploads");
+if (!process.env.VERCEL) { try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch { /**/ } }
 
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
 };
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => {
-      const ext = MIME_TO_EXT[file.mimetype] || ".jpg";
-      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (MIME_TO_EXT[file.mimetype]) cb(null, true);
+      else cb(new Error("Only image files (jpeg, png, gif, webp) are allowed"));
     },
-  }),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (MIME_TO_EXT[file.mimetype]) cb(null, true);
-    else cb(new Error("Only image files (jpeg, png, gif, webp) are allowed"));
-  },
-});
+  });
 
 
 // ─── デモデータ ───
@@ -556,11 +547,10 @@ async function sendLineFlexMessage(lineId: string, lineMessageData: any, token: 
 
   }
 
-  await axios.post(url, {
-    to: lineId,
-    messages: [{ type: "flex", altText: "お知らせ", contents: flexMessage }]
-  }, {
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+  await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ to: lineId, messages: [{ type: "flex", altText: "お知らせ", contents: flexMessage }] }),
   });
 }
 
@@ -671,13 +661,52 @@ export function ensureSetup(): Promise<void> {
         await seedDatabase();
       }
 
-      // 静的ファイル
-      app.use("/uploads", express.static(uploadsDir, { setHeaders: (res) => res.setHeader("X-Content-Type-Options", "nosniff") }));
-      app.post("/api/upload", upload.single("image"), (req, res) => {
-        if (!req.file) return res.status(400).json({ message: "No image file provided" });
-        res.json({ url: `/uploads/${req.file.filename}` });
-      });
+      // uploaded_filesテーブル作成（DBベース画像ストレージ）
+        await sql`CREATE TABLE IF NOT EXISTS uploaded_files (
+          id SERIAL PRIMARY KEY,
+          filename TEXT NOT NULL UNIQUE,
+          mimetype TEXT NOT NULL,
+          data BYTEA NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )`;
 
+        // 画像配信（DBから配信・ローカルdiskへのフォールバック付き）
+        const serveUpload = async (req: Request, res: Response) => {
+          const filename = req.params.filename;
+          try {
+            const rows = await sql`SELECT mimetype, data FROM uploaded_files WHERE filename = ${filename}`;
+            if (rows.length) {
+              res.setHeader("Content-Type", rows[0].mimetype);
+              res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+              return res.send(Buffer.isBuffer(rows[0].data) ? rows[0].data : Buffer.from(rows[0].data));
+            }
+          } catch (e: any) { console.warn("DB serve error:", e.message); }
+          if (!process.env.VERCEL) {
+            const diskPath = path.join(uploadsDir, filename);
+            if (fs.existsSync(diskPath)) return res.sendFile(diskPath);
+          }
+          res.status(404).json({ message: "File not found" });
+        };
+        app.get("/uploads/:filename", serveUpload);
+        app.get("/api/uploads/:filename", serveUpload);
+
+        // 画像アップロード（DBに保存）
+        app.post("/api/upload", upload.single("image"), async (req: Request, res: Response) => {
+          if (!req.file) return res.status(400).json({ message: "No image file provided" });
+          const ext = MIME_TO_EXT[req.file.mimetype] || ".jpg";
+          const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+          try {
+            await sql`INSERT INTO uploaded_files (filename, mimetype, data) VALUES (${filename}, ${req.file.mimetype}, ${req.file.buffer})`;
+            if (!process.env.VERCEL) {
+              fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
+            }
+          } catch (e: any) {
+            console.error("Upload DB error:", e.message);
+            return res.status(500).json({ message: "Upload failed" });
+          }
+          res.json({ url: `/uploads/${filename}` });
+        });
+  
       // ─── エリア・カテゴリ ───
       app.get("/api/areas", async (_req, res) => { try { res.json(await sql`SELECT * FROM areas ORDER BY id`); } catch { res.status(500).json({ message: "Failed to fetch areas" }); } });
       app.get("/api/categories", async (_req, res) => { try { res.json(await sql`SELECT * FROM categories ORDER BY id`); } catch { res.status(500).json({ message: "Failed to fetch categories" }); } });
