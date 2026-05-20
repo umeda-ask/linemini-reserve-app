@@ -35,6 +35,8 @@ export function DateTimeSelect({ shopId, course, staff, onSelect }: DateTimeSele
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const maxDate = addMonths(today, 1);
+
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
@@ -56,10 +58,8 @@ export function DateTimeSelect({ shopId, course, staff, onSelect }: DateTimeSele
     const dateStr = format(selectedDate, "yyyy-MM-dd");
     setLoadingSlots(true);
     fetchSlots(shopId, staffId, dateStr, course.id).then((slots) => {
-      console.log("Fetched slots:", slots);
       setTimeSlots(slots);
-    }).catch((error) => {
-      console.error("Failed to fetch slots:", error);
+    }).catch(() => {
       setTimeSlots([]);
     }).finally(() => {
       setLoadingSlots(false);
@@ -67,7 +67,7 @@ export function DateTimeSelect({ shopId, course, staff, onSelect }: DateTimeSele
   }, [selectedDate, staff, shopId]);
 
   const handleDateClick = (date: Date) => {
-    if (isBefore(date, today) || !isSameMonth(date, currentMonth)) return;
+    if (isBefore(date, today) || !isSameMonth(date, currentMonth) || date > maxDate) return;
     setSelectedDate(date);
   };
 
@@ -104,7 +104,8 @@ export function DateTimeSelect({ shopId, course, staff, onSelect }: DateTimeSele
           </span>
           <button
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            className="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-muted"
+            disabled={isSameMonth(currentMonth, maxDate) || currentMonth > maxDate}
+            className="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
             data-testid="button-next-month"
           >
             <ChevronRight className="h-4 w-4" />
@@ -131,7 +132,8 @@ export function DateTimeSelect({ shopId, course, staff, onSelect }: DateTimeSele
             const selected = selectedDate && isSameDay(day, selectedDate);
             const todayMark = isToday(day);
             const dayOfWeek = day.getDay();
-            const disabled = !inMonth || past;
+            const beyondMax = day > maxDate;
+            const disabled = !inMonth || past || beyondMax;
 
             return (
               <button
@@ -173,7 +175,6 @@ export function DateTimeSelect({ shopId, course, staff, onSelect }: DateTimeSele
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-2 bg-card p-4">
-              {timeSlots.length === 0 && <div className="text-xs text-muted-foreground">スロット情報がありません</div>}
               {timeSlots.map((slot) => (
                 <button
                   key={slot.time}
@@ -185,7 +186,6 @@ export function DateTimeSelect({ shopId, course, staff, onSelect }: DateTimeSele
                       : "border-border bg-muted text-muted-foreground/40 line-through"
                   }`}
                   data-testid={`time-slot-${slot.time}`}
-                  title={`Time: ${slot.time}, Available: ${slot.available}`}
                 >
                   {slot.time}
                 </button>
